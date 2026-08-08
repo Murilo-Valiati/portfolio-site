@@ -15,6 +15,14 @@ export interface Language {
   level: number;
 }
 
+export interface Experience {
+  id: string;
+  role: string;
+  place: string;
+  period: string;
+  description: string;
+}
+
 export interface SiteContent {
   profile: {
     name: string;
@@ -25,6 +33,7 @@ export interface SiteContent {
     avatarUrl: string | null;
   };
   skills: string[];
+  experience: Experience[];
   projects: Project[];
   languages: Language[];
   contact: {
@@ -53,6 +62,16 @@ export const DEFAULT_CONTENT: SiteContent = {
     "AWS",
     "Docker",
     "SQL",
+  ],
+  experience: [
+    {
+      id: "experiencia-1",
+      role: "Cargo/função",
+      place: "Empresa ou contexto",
+      period: "0000 - Atual",
+      description:
+        "Descreva aqui suas principais responsabilidades e conquistas nessa posição.",
+    },
   ],
   projects: [
     {

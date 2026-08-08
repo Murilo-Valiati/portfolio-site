@@ -6,13 +6,14 @@ export const dynamic = "force-dynamic";
 
 const nav = [
   { href: "#sobre", label: "Sobre" },
-  { href: "#idiomas", label: "Idiomas" },
+  { href: "#experiencia", label: "Experiência" },
   { href: "#projetos", label: "Projetos" },
   { href: "#contato", label: "Contato" },
 ];
 
 export default async function Home() {
-  const { profile, skills, projects, languages, contact } = await getContent();
+  const { profile, skills, experience, projects, languages, contact } =
+    await getContent();
 
   return (
     <>
@@ -67,6 +68,29 @@ export default async function Home() {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section id="experiencia" className="flex flex-col gap-6">
+          <h2 className="text-2xl font-bold">Experiência</h2>
+          <div className="flex flex-col gap-4">
+            {experience.map((item) => (
+              <article
+                key={item.id}
+                className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="font-semibold">{item.role}</h3>
+                  <span className="text-xs opacity-60">{item.period}</span>
+                </div>
+                {item.place && (
+                  <p className="text-sm text-[var(--color-accent)]">{item.place}</p>
+                )}
+                <p className="text-sm leading-relaxed opacity-80">
+                  {item.description}
+                </p>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section id="idiomas" className="flex flex-col gap-6">

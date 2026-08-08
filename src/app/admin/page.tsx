@@ -17,6 +17,7 @@ const addBtnClass =
 export default function AdminDashboard() {
   const router = useRouter();
   const [content, setContent] = useState<SiteContent | null>(null);
+  const [tagsDrafts, setTagsDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -25,20 +26,43 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetch("/api/admin/content")
       .then((res) => res.json())
-      .then((data: SiteContent) => setContent(data))
+      .then((data: SiteContent) => {
+        setContent(data);
+        setTagsDrafts(
+          Object.fromEntries(data.projects.map((p) => [p.id, p.tags.join(", ")]))
+        );
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  function parseTags(raw: string): string[] {
+    return raw
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
 
   async function handleSave() {
     if (!content) return;
     setSaving(true);
     setMessage(null);
+    const contentToSave: SiteContent = {
+      ...content,
+      projects: content.projects.map((project) => ({
+        ...project,
+        tags:
+          tagsDrafts[project.id] !== undefined
+            ? parseTags(tagsDrafts[project.id])
+            : project.tags,
+      })),
+    };
     const res = await fetch("/api/admin/content", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(content),
+      body: JSON.stringify(contentToSave),
     });
     setSaving(false);
+    setContent(contentToSave);
     setMessage(res.ok ? "Alterações salvas com sucesso." : "Erro ao salvar.");
   }
 
@@ -171,6 +195,97 @@ export default function AdminDashboard() {
           </label>
         </section>
 
+        {/* Experiência */}
+        <section className={cardClass}>
+          <h2 className="text-lg font-semibold">Experiência</h2>
+          {content.experience.map((item, i) => (
+            <div
+              key={item.id}
+              className="flex flex-col gap-2 rounded-lg border border-[var(--color-border)] p-4"
+            >
+              <label className={labelClass}>
+                Cargo / função
+                <input
+                  className={inputClass}
+                  value={item.role}
+                  onChange={(e) => {
+                    const experience = [...content.experience];
+                    experience[i] = { ...experience[i], role: e.target.value };
+                    setContent({ ...content, experience });
+                  }}
+                />
+              </label>
+              <label className={labelClass}>
+                Empresa / contexto
+                <input
+                  className={inputClass}
+                  value={item.place}
+                  onChange={(e) => {
+                    const experience = [...content.experience];
+                    experience[i] = { ...experience[i], place: e.target.value };
+                    setContent({ ...content, experience });
+                  }}
+                />
+              </label>
+              <label className={labelClass}>
+                Período (ex: 2023 - Atual)
+                <input
+                  className={inputClass}
+                  value={item.period}
+                  onChange={(e) => {
+                    const experience = [...content.experience];
+                    experience[i] = { ...experience[i], period: e.target.value };
+                    setContent({ ...content, experience });
+                  }}
+                />
+              </label>
+              <label className={labelClass}>
+                Descrição
+                <textarea
+                  className={`${inputClass} min-h-16`}
+                  value={item.description}
+                  onChange={(e) => {
+                    const experience = [...content.experience];
+                    experience[i] = { ...experience[i], description: e.target.value };
+                    setContent({ ...content, experience });
+                  }}
+                />
+              </label>
+              <button
+                onClick={() =>
+                  setContent({
+                    ...content,
+                    experience: content.experience.filter((_, idx) => idx !== i),
+                  })
+                }
+                className={removeBtnClass}
+              >
+                Remover experiência
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() =>
+              setContent({
+                ...content,
+                experience: [
+                  ...content.experience,
+                  {
+                    id: `experiencia-${Date.now()}`,
+                    role: "",
+                    place: "",
+                    period: "",
+                    description: "",
+                  },
+                ],
+              })
+            }
+            className={addBtnClass}
+          >
+            + Adicionar experiência
+          </button>
+        </section>
+
         {/* Skills */}
         <section className={cardClass}>
           <h2 className="text-lg font-semibold">Skills</h2>
@@ -244,16 +359,13 @@ export default function AdminDashboard() {
                 Tags (separadas por vírgula)
                 <input
                   className={inputClass}
-                  value={project.tags.join(", ")}
-                  onChange={(e) => {
+                  value={tagsDrafts[project.id] ?? project.tags.join(", ")}
+                  onChange={(e) =>
+                    setTagsDrafts({ ...tagsDrafts, [project.id]: e.target.value })
+                  }
+                  onBlur={(e) => {
                     const projects = [...content.projects];
-                    projects[i] = {
-                      ...projects[i],
-                      tags: e.target.value
-                        .split(",")
-                        .map((t) => t.trim())
-                        .filter(Boolean),
-                    };
+                    projects[i] = { ...projects[i], tags: parseTags(e.target.value) };
                     setContent({ ...content, projects });
                   }}
                 />
@@ -283,12 +395,15 @@ export default function AdminDashboard() {
                 />
               </label>
               <button
-                onClick={() =>
+                onClick={() => {
                   setContent({
                     ...content,
                     projects: content.projects.filter((_, idx) => idx !== i),
-                  })
-                }
+                  });
+                  const drafts = { ...tagsDrafts };
+                  delete drafts[project.id];
+                  setTagsDrafts(drafts);
+                }}
                 className={removeBtnClass}
               >
                 Remover projeto
@@ -296,13 +411,14 @@ export default function AdminDashboard() {
             </div>
           ))}
           <button
-            onClick={() =>
+            onClick={() => {
+              const id = `projeto-${Date.now()}`;
               setContent({
                 ...content,
                 projects: [
                   ...content.projects,
                   {
-                    id: `projeto-${Date.now()}`,
+                    id,
                     title: "Novo projeto",
                     description: "",
                     tags: [],
@@ -310,8 +426,9 @@ export default function AdminDashboard() {
                     repo: "#",
                   },
                 ],
-              })
-            }
+              });
+              setTagsDrafts({ ...tagsDrafts, [id]: "" });
+            }}
             className={addBtnClass}
           >
             + Adicionar projeto
