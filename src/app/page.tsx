@@ -1,4 +1,5 @@
 import { contact, profile, projects, skills } from "@/content/profile";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const nav = [
   { href: "#sobre", label: "Sobre" },
@@ -9,38 +10,43 @@ const nav = [
 export default function Home() {
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-black/10 bg-[var(--background)]/80 backdrop-blur dark:border-white/10">
+      <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-background)]/80 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <span className="font-semibold">{profile.name}</span>
-          <nav className="flex gap-6 text-sm">
-            {nav.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="opacity-80 transition hover:opacity-100"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
+          <div className="flex items-center gap-6">
+            <nav className="flex gap-6 text-sm">
+              {nav.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="opacity-80 transition hover:opacity-100 hover:text-[var(--color-accent)]"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-24 px-6 py-16">
         <section id="sobre" className="flex flex-col items-start gap-6 pt-8">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-black/5 text-xl font-semibold dark:bg-white/10">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--color-accent)] text-xl font-semibold text-[var(--rich-black)]">
             {profile.avatarInitials}
           </div>
           <div>
             <h1 className="text-3xl font-bold sm:text-4xl">{profile.name}</h1>
-            <p className="mt-1 text-lg opacity-70">{profile.title}</p>
+            <p className="mt-1 text-lg text-[var(--color-accent)]">
+              {profile.title}
+            </p>
           </div>
           <p className="max-w-2xl leading-relaxed opacity-90">{profile.bio}</p>
           <ul className="flex flex-wrap gap-2">
             {skills.map((skill) => (
               <li
                 key={skill}
-                className="rounded-full border border-black/10 px-3 py-1 text-sm dark:border-white/15"
+                className="rounded-full border border-[var(--color-border)] px-3 py-1 text-sm"
               >
                 {skill}
               </li>
@@ -54,7 +60,7 @@ export default function Home() {
             {projects.map((project) => (
               <article
                 key={project.title}
-                className="flex flex-col gap-3 rounded-xl border border-black/10 p-5 transition hover:border-black/25 dark:border-white/15 dark:hover:border-white/30"
+                className="flex flex-col gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition hover:border-[var(--color-accent)]"
               >
                 <h3 className="font-semibold">{project.title}</h3>
                 <p className="text-sm leading-relaxed opacity-80">
@@ -64,7 +70,8 @@ export default function Home() {
                   {project.tags.map((tag) => (
                     <li
                       key={tag}
-                      className="rounded-full bg-black/5 px-2 py-0.5 text-xs dark:bg-white/10"
+                      className="rounded-full px-2 py-0.5 text-xs text-[var(--rich-black)]"
+                      style={{ background: "var(--color-accent-soft)" }}
                     >
                       {tag}
                     </li>
@@ -73,13 +80,13 @@ export default function Home() {
                 <div className="mt-auto flex gap-4 pt-2 text-sm">
                   <a
                     href={project.link}
-                    className="underline underline-offset-4 opacity-80 hover:opacity-100"
+                    className="underline underline-offset-4 opacity-80 hover:opacity-100 hover:text-[var(--color-accent)]"
                   >
                     Ver projeto
                   </a>
                   <a
                     href={project.repo}
-                    className="underline underline-offset-4 opacity-80 hover:opacity-100"
+                    className="underline underline-offset-4 opacity-80 hover:opacity-100 hover:text-[var(--color-accent)]"
                   >
                     Código
                   </a>
@@ -98,7 +105,7 @@ export default function Home() {
           <div className="flex flex-wrap gap-4 text-sm">
             <a
               href={`mailto:${contact.email}`}
-              className="rounded-lg border border-black/10 px-4 py-2 transition hover:border-black/25 dark:border-white/15 dark:hover:border-white/30"
+              className="rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
             >
               Email
             </a>
@@ -106,7 +113,7 @@ export default function Home() {
               href={contact.linkedin}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg border border-black/10 px-4 py-2 transition hover:border-black/25 dark:border-white/15 dark:hover:border-white/30"
+              className="rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
             >
               LinkedIn
             </a>
@@ -114,7 +121,7 @@ export default function Home() {
               href={contact.github}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg border border-black/10 px-4 py-2 transition hover:border-black/25 dark:border-white/15 dark:hover:border-white/30"
+              className="rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
             >
               GitHub
             </a>
@@ -122,7 +129,7 @@ export default function Home() {
               href={contact.whatsapp}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg border border-black/10 px-4 py-2 transition hover:border-black/25 dark:border-white/15 dark:hover:border-white/30"
+              className="rounded-lg border border-[var(--color-border)] px-4 py-2 transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
             >
               WhatsApp
             </a>
@@ -130,7 +137,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-black/10 px-6 py-6 text-center text-sm opacity-60 dark:border-white/10">
+      <footer className="border-t border-[var(--color-border)] px-6 py-6 text-center text-sm opacity-60">
         © {new Date().getFullYear()} {profile.name}
       </footer>
     </>
