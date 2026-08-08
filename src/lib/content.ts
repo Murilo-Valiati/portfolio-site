@@ -26,6 +26,7 @@ export interface Experience {
 export interface SiteContent {
   profile: {
     name: string;
+    shortName: string;
     title: string;
     bio: string;
     location: string;
@@ -47,6 +48,7 @@ export interface SiteContent {
 export const DEFAULT_CONTENT: SiteContent = {
   profile: {
     name: "Murilo Valiati",
+    shortName: "MBV",
     title: "Desenvolvedor de Software",
     bio: "Apaixonado por tecnologia e por transformar ideias em produtos digitais. Atuo com desenvolvimento web, sempre buscando aprender novas ferramentas e boas práticas para entregar soluções simples e eficientes.",
     location: "Brasil",
@@ -125,7 +127,13 @@ async function ensureDataDir() {
 export async function getContent(): Promise<SiteContent> {
   try {
     const raw = await fs.readFile(CONTENT_FILE, "utf-8");
-    return { ...DEFAULT_CONTENT, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_CONTENT,
+      ...parsed,
+      profile: { ...DEFAULT_CONTENT.profile, ...parsed.profile },
+      contact: { ...DEFAULT_CONTENT.contact, ...parsed.contact },
+    };
   } catch {
     await ensureDataDir();
     await fs.writeFile(CONTENT_FILE, JSON.stringify(DEFAULT_CONTENT, null, 2));

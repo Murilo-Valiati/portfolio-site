@@ -152,6 +152,21 @@ export default function AdminDashboard() {
           </label>
 
           <label className={labelClass}>
+            Nome curto (cabeçalho do site)
+            <input
+              className={inputClass}
+              maxLength={10}
+              value={content.profile.shortName}
+              onChange={(e) =>
+                setContent({
+                  ...content,
+                  profile: { ...content.profile, shortName: e.target.value },
+                })
+              }
+            />
+          </label>
+
+          <label className={labelClass}>
             Iniciais do avatar (fallback)
             <input
               className={inputClass}

@@ -19,7 +19,9 @@ export default async function Home() {
     <>
       <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-background)]/80 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <span className="font-semibold">{profile.name}</span>
+          <a href="#sobre" className="font-semibold">
+            {profile.shortName}
+          </a>
           <div className="flex items-center gap-6">
             <nav className="flex gap-6 text-sm">
               {nav.map((item) => (
