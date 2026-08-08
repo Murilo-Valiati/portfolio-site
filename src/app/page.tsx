@@ -1,6 +1,8 @@
-import { contact, languages, profile, projects, skills } from "@/content/profile";
+import { getContent } from "@/lib/content";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageBar } from "@/components/language-bar";
+
+export const dynamic = "force-dynamic";
 
 const nav = [
   { href: "#sobre", label: "Sobre" },
@@ -9,7 +11,9 @@ const nav = [
   { href: "#contato", label: "Contato" },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const { profile, skills, projects, languages, contact } = await getContent();
+
   return (
     <>
       <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-background)]/80 backdrop-blur">
@@ -34,8 +38,17 @@ export default function Home() {
 
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-24 px-6 py-16">
         <section id="sobre" className="flex flex-col items-start gap-6 pt-8">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--color-accent)] text-xl font-semibold text-[var(--rich-black)]">
-            {profile.avatarInitials}
+          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-xl font-semibold text-[var(--rich-black)]">
+            {profile.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profile.avatarUrl}
+                alt={profile.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              profile.avatarInitials
+            )}
           </div>
           <div>
             <h1 className="text-3xl font-bold sm:text-4xl">{profile.name}</h1>
@@ -74,7 +87,7 @@ export default function Home() {
           <div className="grid gap-6 sm:grid-cols-2">
             {projects.map((project) => (
               <article
-                key={project.title}
+                key={project.id}
                 className="flex flex-col gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition hover:border-[var(--color-accent)]"
               >
                 <h3 className="font-semibold">{project.title}</h3>
