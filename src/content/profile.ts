@@ -46,6 +46,12 @@ export const projects = [
   },
 ];
 
+export const languages = [
+  { name: "Português", level: 100 },
+  { name: "Inglês", level: 5 },
+  { name: "Espanhol", level: 20 },
+];
+
 export const contact = {
   email: "murilo.valiat@gmail.com",
   linkedin: "https://www.linkedin.com/in/SEU-USUARIO",

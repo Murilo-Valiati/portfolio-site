@@ -1,8 +1,10 @@
-import { contact, profile, projects, skills } from "@/content/profile";
+import { contact, languages, profile, projects, skills } from "@/content/profile";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageBar } from "@/components/language-bar";
 
 const nav = [
   { href: "#sobre", label: "Sobre" },
+  { href: "#idiomas", label: "Idiomas" },
   { href: "#projetos", label: "Projetos" },
   { href: "#contato", label: "Contato" },
 ];
@@ -52,6 +54,19 @@ export default function Home() {
               </li>
             ))}
           </ul>
+        </section>
+
+        <section id="idiomas" className="flex flex-col gap-6">
+          <h2 className="text-2xl font-bold">Idiomas</h2>
+          <div className="grid gap-6 sm:grid-cols-3">
+            {languages.map((language) => (
+              <LanguageBar
+                key={language.name}
+                name={language.name}
+                level={language.level}
+              />
+            ))}
+          </div>
         </section>
 
         <section id="projetos" className="flex flex-col gap-8">
