@@ -53,3 +53,12 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

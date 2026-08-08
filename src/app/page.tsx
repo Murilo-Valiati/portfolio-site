@@ -1,6 +1,7 @@
 import { getContent } from "@/lib/content";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageBar } from "@/components/language-bar";
+import { ExpandableText } from "@/components/expandable-text";
 
 export const dynamic = "force-dynamic";
 
@@ -18,23 +19,25 @@ export default async function Home() {
   return (
     <>
       <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-background)]/80 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
-          <a href="#sobre" className="font-semibold">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+          <a href="#sobre" className="shrink-0 font-semibold">
             {profile.shortName}
           </a>
-          <div className="flex items-center gap-6">
-            <nav className="flex gap-6 text-sm">
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+            <nav className="no-scrollbar flex gap-4 overflow-x-auto text-sm sm:gap-6">
               {nav.map((item) => (
                 <a
                   key={item.href}
                   href={item.href}
-                  className="opacity-80 transition hover:opacity-100 hover:text-[var(--color-accent)]"
+                  className="shrink-0 opacity-80 transition hover:opacity-100 hover:text-[var(--color-accent)]"
                 >
                   {item.label}
                 </a>
               ))}
             </nav>
-            <ThemeToggle />
+            <div className="shrink-0">
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </header>
@@ -87,9 +90,7 @@ export default async function Home() {
                 {item.place && (
                   <p className="text-sm text-[var(--color-accent)]">{item.place}</p>
                 )}
-                <p className="text-sm leading-relaxed opacity-80">
-                  {item.description}
-                </p>
+                <ExpandableText text={item.description} />
               </article>
             ))}
           </div>
