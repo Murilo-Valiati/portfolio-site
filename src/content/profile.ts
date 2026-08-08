@@ -49,6 +49,6 @@ export const projects = [
 export const contact = {
   email: "murilo.valiat@gmail.com",
   linkedin: "https://www.linkedin.com/in/SEU-USUARIO",
-  github: "https://github.com/SEU-USUARIO",
+  github: "https://github.com/Murilo-Valiati",
   whatsapp: "https://wa.me/55SEUNUMERO",
 };
