@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/session";
 
+export const LMS_SESSION_COOKIE = "lms_session";
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  if (pathname.startsWith("/assistente") || pathname.startsWith("/api/assistente")) {
+    const res = NextResponse.next();
+    if (!req.cookies.get(LMS_SESSION_COOKIE)) {
+      res.cookies.set(LMS_SESSION_COOKIE, crypto.randomUUID(), {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: true,
+        maxAge: 60 * 60 * 24 * 365,
+        path: "/",
+      });
+    }
+    return res;
+  }
 
   const isPublicAdminRoute =
     pathname === "/admin/login" || pathname === "/api/admin/login";
@@ -30,5 +46,10 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/api/admin/:path*",
+    "/assistente/:path*",
+    "/api/assistente/:path*",
+  ],
 };
