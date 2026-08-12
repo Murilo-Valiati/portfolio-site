@@ -234,6 +234,10 @@ export default async function Home() {
 
       <footer className="border-t border-[var(--color-border)] px-6 py-7 text-center text-[13px] text-[var(--color-muted)]">
         © {new Date().getFullYear()} {profile.name}
+        <span className="mx-2 opacity-50">·</span>
+        <a href="/admin" className="opacity-70 transition hover:text-[var(--color-accent)] hover:opacity-100">
+          Painel do usuário
+        </a>
       </footer>
     </>
   );
