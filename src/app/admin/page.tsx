@@ -99,9 +99,17 @@ export default function AdminDashboard() {
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Painel administrativo</h1>
-          <button onClick={handleLogout} className={removeBtnClass}>
-            Sair
-          </button>
+          <div className="flex items-center gap-3">
+            <a
+              href="/assistente"
+              className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+            >
+              Assistente IA →
+            </a>
+            <button onClick={handleLogout} className={removeBtnClass}>
+              Sair
+            </button>
+          </div>
         </div>
 
         {/* Perfil */}
