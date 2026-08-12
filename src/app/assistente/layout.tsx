@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LogoutButton } from "@/components/assistente/logout-button";
 
 export const metadata: Metadata = {
   title: "Assistente de Aprendizagem | Murilo Valiati",
@@ -41,6 +42,7 @@ export default function AssistenteLayout({
               >
                 ← Portfólio
               </Link>
+              <LogoutButton />
             </nav>
             <div className="shrink-0">
               <ThemeToggle />

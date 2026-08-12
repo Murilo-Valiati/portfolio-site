@@ -10,7 +10,7 @@ const nav = [
   { href: "#experiencia", label: "Experiência" },
   { href: "#projetos", label: "Projetos" },
   { href: "#contato", label: "Contato" },
-  { href: "/assistente", label: "Assistente IA" },
+  { href: "/assistente", label: "Painel de usuário" },
 ];
 
 export default async function Home() {

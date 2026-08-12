@@ -6,43 +6,42 @@ export const LMS_SESSION_COOKIE = "lms_session";
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (pathname.startsWith("/assistente") || pathname.startsWith("/api/assistente")) {
-    const res = NextResponse.next();
-    if (!req.cookies.get(LMS_SESSION_COOKIE)) {
-      res.cookies.set(LMS_SESSION_COOKIE, crypto.randomUUID(), {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: true,
-        maxAge: 60 * 60 * 24 * 365,
-        path: "/",
-      });
-    }
-    return res;
-  }
+  const isAssistenteRoute =
+    pathname.startsWith("/assistente") || pathname.startsWith("/api/assistente");
 
   const isPublicAdminRoute =
     pathname === "/admin/login" || pathname === "/api/admin/login";
 
   const isProtected =
-    (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) &&
-    !isPublicAdminRoute;
+    isAssistenteRoute ||
+    ((pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) &&
+      !isPublicAdminRoute);
 
-  if (!isProtected) {
-    return NextResponse.next();
-  }
+  if (isProtected) {
+    const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const valid = token ? await verifySessionToken(token) : false;
 
-  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const valid = token ? await verifySessionToken(token) : false;
-
-  if (!valid) {
-    if (pathname.startsWith("/api/admin")) {
-      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    if (!valid) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+      }
+      const loginUrl = new URL("/admin/login", req.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
     }
-    const loginUrl = new URL("/admin/login", req.url);
-    return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  const res = NextResponse.next();
+  if (isAssistenteRoute && !req.cookies.get(LMS_SESSION_COOKIE)) {
+    res.cookies.set(LMS_SESSION_COOKIE, crypto.randomUUID(), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: true,
+      maxAge: 60 * 60 * 24 * 365,
+      path: "/",
+    });
+  }
+  return res;
 }
 
 export const config = {
