@@ -17,6 +17,7 @@ export interface Course {
   id: string;
   title: string;
   description: string;
+  category: string;
   modules: Module[];
 }
 
@@ -24,6 +25,7 @@ export const COURSES: Course[] = [
   {
     id: "logica-de-programacao",
     title: "Lógica de Programação",
+    category: "Tecnologia",
     description:
       "Fundamentos de algoritmos, variáveis, estruturas de controle e raciocínio lógico para programar.",
     modules: [
@@ -68,6 +70,7 @@ export const COURSES: Course[] = [
   {
     id: "estruturas-de-dados",
     title: "Estruturas de Dados",
+    category: "Tecnologia",
     description:
       "Como organizar e acessar dados de forma eficiente: listas, pilhas, filas e mais.",
     modules: [
@@ -94,6 +97,7 @@ export const COURSES: Course[] = [
   {
     id: "fundamentos-de-ia",
     title: "Fundamentos de Inteligência Artificial",
+    category: "Tecnologia",
     description:
       "Conceitos essenciais de IA e machine learning para quem está começando na área.",
     modules: [
@@ -156,6 +160,108 @@ export function countLessons(course: Course): number {
   return course.modules.reduce((sum, m) => sum + m.lessons.length, 0);
 }
 
+const DATA_DIR = process.env.CONTENT_DATA_DIR || path.join(process.cwd(), ".data");
+
+async function ensureDataDir() {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+}
+
+// --- Módulos e lições personalizados (adicionados pelo usuário) ---
+
+interface CustomModulesStore {
+  [courseId: string]: Module[];
+}
+
+const CUSTOM_MODULES_FILE = path.join(DATA_DIR, "lms-custom-modules.json");
+
+async function readCustomModulesStore(): Promise<CustomModulesStore> {
+  try {
+    const raw = await fs.readFile(CUSTOM_MODULES_FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+async function writeCustomModulesStore(store: CustomModulesStore): Promise<void> {
+  await ensureDataDir();
+  await fs.writeFile(CUSTOM_MODULES_FILE, JSON.stringify(store, null, 2));
+}
+
+export async function getCustomModules(courseId: string): Promise<Module[]> {
+  const store = await readCustomModulesStore();
+  return store[courseId] ?? [];
+}
+
+export async function addCustomModule(
+  courseId: string,
+  title: string
+): Promise<Module[]> {
+  const store = await readCustomModulesStore();
+  if (!store[courseId]) store[courseId] = [];
+  store[courseId].push({
+    id: `custom-modulo-${Date.now()}`,
+    title,
+    lessons: [],
+  });
+  await writeCustomModulesStore(store);
+  return store[courseId];
+}
+
+export async function removeCustomModule(
+  courseId: string,
+  moduleId: string
+): Promise<Module[]> {
+  const store = await readCustomModulesStore();
+  store[courseId] = (store[courseId] ?? []).filter((m) => m.id !== moduleId);
+  await writeCustomModulesStore(store);
+  return store[courseId];
+}
+
+export async function addCustomLesson(
+  courseId: string,
+  moduleId: string,
+  title: string
+): Promise<Module[]> {
+  const store = await readCustomModulesStore();
+  const mod = (store[courseId] ?? []).find((m) => m.id === moduleId);
+  if (mod) {
+    mod.lessons.push({
+      id: `custom-licao-${Date.now()}`,
+      title,
+      content: "",
+    });
+    await writeCustomModulesStore(store);
+  }
+  return store[courseId] ?? [];
+}
+
+export async function getCourseWithCustomModules(
+  courseId: string
+): Promise<Course | undefined> {
+  const course = getCourse(courseId);
+  if (!course) return undefined;
+  const customModules = await getCustomModules(courseId);
+  return { ...course, modules: [...course.modules, ...customModules] };
+}
+
+export async function getLessonWithCustom(
+  courseId: string,
+  lessonId: string
+): Promise<{ course: Course; module: Module; lesson: Lesson } | undefined> {
+  const builtin = getLesson(courseId, lessonId);
+  if (builtin) return builtin;
+
+  const course = getCourse(courseId);
+  if (!course) return undefined;
+  const customModules = await getCustomModules(courseId);
+  for (const mod of customModules) {
+    const lesson = mod.lessons.find((l) => l.id === lessonId);
+    if (lesson) return { course, module: mod, lesson };
+  }
+  return undefined;
+}
+
 interface ProgressStore {
   [sessionId: string]: {
     [courseId: string]: {
@@ -164,12 +270,7 @@ interface ProgressStore {
   };
 }
 
-const DATA_DIR = process.env.CONTENT_DATA_DIR || path.join(process.cwd(), ".data");
 const PROGRESS_FILE = path.join(DATA_DIR, "lms-progress.json");
-
-async function ensureDataDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
 
 async function readStore(): Promise<ProgressStore> {
   try {

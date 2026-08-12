@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -36,11 +36,26 @@ interface Message {
   text: string;
 }
 
-export function ChatWidget({ courseContext }: { courseContext?: string }) {
+export function ChatWidget({
+  courseContext,
+  threadKey = "geral",
+}: {
+  courseContext?: string;
+  threadKey?: string;
+}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setHistoryLoading(true);
+    fetch(`/api/assistente/chat?threadKey=${encodeURIComponent(threadKey)}`)
+      .then((res) => res.json())
+      .then((data) => setMessages(Array.isArray(data.history) ? data.history : []))
+      .finally(() => setHistoryLoading(false));
+  }, [threadKey]);
 
   const send = async () => {
     const text = input.trim();
@@ -54,7 +69,7 @@ export function ChatWidget({ courseContext }: { courseContext?: string }) {
       const res = await fetch("/api/assistente/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history, courseContext }),
+        body: JSON.stringify({ message: text, history, courseContext, threadKey }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao responder.");
@@ -71,7 +86,7 @@ export function ChatWidget({ courseContext }: { courseContext?: string }) {
       <h2 className="text-lg font-semibold">Tutor de IA</h2>
 
       <div className="flex max-h-96 flex-col gap-3 overflow-y-auto">
-        {messages.length === 0 && (
+        {!historyLoading && messages.length === 0 && (
           <p className="text-sm opacity-60">
             Pergunte algo sobre esta lição ou peça um exemplo.
           </p>

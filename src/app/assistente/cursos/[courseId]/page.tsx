@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { LMS_SESSION_COOKIE } from "@/middleware";
-import { getCourse, getProgress } from "@/lib/lms";
+import { getCourse, getCustomModules, getProgress } from "@/lib/lms";
+import { CourseModules } from "@/components/assistente/course-modules";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default async function CoursePage({
 
   const sessionId = (await cookies()).get(LMS_SESSION_COOKIE)?.value;
   const completed = sessionId ? await getProgress(sessionId, courseId) : [];
+  const customModules = await getCustomModules(courseId);
 
   return (
     <>
@@ -32,37 +34,12 @@ export default async function CoursePage({
         </p>
       </div>
 
-      <div className="flex flex-col gap-8">
-        {course.modules.map((mod) => (
-          <section key={mod.id} className="flex flex-col gap-3">
-            <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
-              {mod.title}
-            </h2>
-            <div className="flex flex-col gap-2">
-              {mod.lessons.map((lesson) => {
-                const done = completed.includes(lesson.id);
-                return (
-                  <Link
-                    key={lesson.id}
-                    href={`/assistente/cursos/${course.id}/${lesson.id}`}
-                    className="hover-card flex items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3"
-                  >
-                    <span>{lesson.title}</span>
-                    {done && (
-                      <span
-                        className="shrink-0 rounded-full px-2 py-0.5 text-xs text-[var(--rich-black)]"
-                        style={{ background: "var(--color-accent-soft)" }}
-                      >
-                        Concluída
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </div>
+      <CourseModules
+        courseId={course.id}
+        builtinModules={course.modules}
+        initialCustomModules={customModules}
+        completedLessons={completed}
+      />
     </>
   );
 }

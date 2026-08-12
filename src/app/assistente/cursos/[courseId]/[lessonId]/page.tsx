@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { LMS_SESSION_COOKIE } from "@/middleware";
-import { getLesson, getProgress } from "@/lib/lms";
+import { getLessonWithCustom, getProgress } from "@/lib/lms";
 import { LessonProgressToggle } from "@/components/assistente/lesson-progress-toggle";
 import { QuizPanel } from "@/components/assistente/quiz-panel";
 import { ChatWidget } from "@/components/assistente/chat-widget";
@@ -15,9 +15,10 @@ export default async function LessonPage({
   params: Promise<{ courseId: string; lessonId: string }>;
 }) {
   const { courseId, lessonId } = await params;
-  const found = getLesson(courseId, lessonId);
+  const found = await getLessonWithCustom(courseId, lessonId);
   if (!found) notFound();
   const { course, lesson } = found;
+  const hasContent = lesson.content.trim().length > 0;
 
   const sessionId = (await cookies()).get(LMS_SESSION_COOKIE)?.value;
   const completed = sessionId ? await getProgress(sessionId, courseId) : [];
@@ -44,13 +45,23 @@ export default async function LessonPage({
         </div>
       </div>
 
-      <article className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-[26px_28px] text-[15px] leading-[1.75] opacity-[.92]">
-        {lesson.content}
-      </article>
+      {hasContent ? (
+        <article className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-[26px_28px] text-[15px] leading-[1.75] opacity-[.92]">
+          {lesson.content}
+        </article>
+      ) : (
+        <p className="rounded-[14px] border border-dashed border-[var(--color-border)] p-[26px_28px] text-[14.5px] opacity-70">
+          Lição personalizada, sem conteúdo cadastrado — use o chat abaixo pra
+          estudar o assunto e marque como concluída quando terminar.
+        </p>
+      )}
 
-      <QuizPanel courseId={course.id} lessonId={lesson.id} />
+      {hasContent && <QuizPanel courseId={course.id} lessonId={lesson.id} />}
 
-      <ChatWidget courseContext={`Curso: ${course.title} / Lição: ${lesson.title}`} />
+      <ChatWidget
+        courseContext={`Curso: ${course.title} / Lição: ${lesson.title}`}
+        threadKey={`${course.id}:${lesson.id}`}
+      />
     </>
   );
 }
