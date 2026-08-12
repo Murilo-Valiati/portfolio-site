@@ -40,10 +40,16 @@ export default function AssistenteLayout({
                 </Link>
               ))}
               <Link
+                href="/admin"
+                className="nav-link shrink-0 opacity-[.72] transition hover:opacity-100"
+              >
+                ← Painel
+              </Link>
+              <Link
                 href="/"
                 className="nav-link shrink-0 opacity-[.72] transition hover:opacity-100"
               >
-                ← Portfólio
+                Portfólio
               </Link>
               <LogoutButton />
             </nav>
