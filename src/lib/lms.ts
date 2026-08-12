@@ -239,7 +239,7 @@ export async function addCustomLesson(
 export async function getCourseWithCustomModules(
   courseId: string
 ): Promise<Course | undefined> {
-  const course = getCourse(courseId);
+  const course = await findAnyCourse(courseId);
   if (!course) return undefined;
   const customModules = await getCustomModules(courseId);
   return { ...course, modules: [...course.modules, ...customModules] };
@@ -252,7 +252,7 @@ export async function getLessonWithCustom(
   const builtin = getLesson(courseId, lessonId);
   if (builtin) return builtin;
 
-  const course = getCourse(courseId);
+  const course = await findAnyCourse(courseId);
   if (!course) return undefined;
   const customModules = await getCustomModules(courseId);
   for (const mod of customModules) {
@@ -260,6 +260,72 @@ export async function getLessonWithCustom(
     if (lesson) return { course, module: mod, lesson };
   }
   return undefined;
+}
+
+// --- Cursos personalizados (criados pelo usuário) ---
+
+const CUSTOM_COURSES_FILE = path.join(DATA_DIR, "lms-custom-courses.json");
+
+async function readCustomCourses(): Promise<Course[]> {
+  try {
+    const raw = await fs.readFile(CUSTOM_COURSES_FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+async function writeCustomCourses(courses: Course[]): Promise<void> {
+  await ensureDataDir();
+  await fs.writeFile(CUSTOM_COURSES_FILE, JSON.stringify(courses, null, 2));
+}
+
+export async function getCustomCourses(): Promise<Course[]> {
+  return readCustomCourses();
+}
+
+export async function getAllCourses(): Promise<Course[]> {
+  return [...COURSES, ...(await getCustomCourses())];
+}
+
+export async function getAllCategories(): Promise<string[]> {
+  const courses = await getAllCourses();
+  return Array.from(new Set(courses.map((c) => c.category)));
+}
+
+export async function findAnyCourse(courseId: string): Promise<Course | undefined> {
+  const builtin = getCourse(courseId);
+  if (builtin) return builtin;
+  const custom = await getCustomCourses();
+  return custom.find((c) => c.id === courseId);
+}
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+export async function addCustomCourse(
+  title: string,
+  description: string,
+  category: string
+): Promise<Course> {
+  const courses = await readCustomCourses();
+  const base = slugify(title) || "curso";
+  let id = base;
+  let n = 1;
+  const existingIds = new Set([...COURSES.map((c) => c.id), ...courses.map((c) => c.id)]);
+  while (existingIds.has(id)) {
+    id = `${base}-${++n}`;
+  }
+  const course: Course = { id, title, description, category, modules: [] };
+  courses.push(course);
+  await writeCustomCourses(courses);
+  return course;
 }
 
 interface ProgressStore {

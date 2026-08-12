@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { LMS_SESSION_COOKIE } from "@/middleware";
-import { getCourse, getCustomModules, getProgress } from "@/lib/lms";
+import { findAnyCourse, getCustomModules, getProgress } from "@/lib/lms";
 import { CourseModules } from "@/components/assistente/course-modules";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export default async function CoursePage({
   params: Promise<{ courseId: string }>;
 }) {
   const { courseId } = await params;
-  const course = getCourse(courseId);
+  const course = await findAnyCourse(courseId);
   if (!course) notFound();
 
   const sessionId = (await cookies()).get(LMS_SESSION_COOKIE)?.value;

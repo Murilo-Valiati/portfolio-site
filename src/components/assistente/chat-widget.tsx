@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -43,11 +44,32 @@ export function ChatWidget({
   courseContext?: string;
   threadKey?: string;
 }) {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [creatingCourse, setCreatingCourse] = useState(false);
+
+  async function handleCreateCourse() {
+    if (creatingCourse || messages.length === 0) return;
+    setCreatingCourse(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/assistente/courses/from-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history: messages }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao criar curso.");
+      router.push(`/assistente/cursos/${data.course.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao criar curso.");
+      setCreatingCourse(false);
+    }
+  }
 
   useEffect(() => {
     setHistoryLoading(true);
@@ -83,7 +105,19 @@ export function ChatWidget({
 
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-      <h2 className="text-lg font-semibold">Tutor de IA</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold">Tutor de IA</h2>
+        {messages.length > 0 && (
+          <button
+            type="button"
+            onClick={handleCreateCourse}
+            disabled={creatingCourse}
+            className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
+          >
+            {creatingCourse ? "Criando curso..." : "Criar curso a partir desta conversa"}
+          </button>
+        )}
+      </div>
 
       <div className="flex max-h-96 flex-col gap-3 overflow-y-auto">
         {!historyLoading && messages.length === 0 && (

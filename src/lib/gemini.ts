@@ -67,6 +67,71 @@ export async function chatWithTutor(
   return generateContent(contents, systemInstruction);
 }
 
+export interface CourseProposal {
+  title: string;
+  description: string;
+  category: string;
+}
+
+export async function proposeCourseFromChat(
+  history: ChatMessage[],
+  existingCategories: string[]
+): Promise<CourseProposal> {
+  const systemInstruction = [
+    "Você analisa uma conversa entre um aluno e um tutor de IA e propõe um curso pra organizar o estudo desse assunto.",
+    "Responda APENAS com um JSON válido, sem markdown, sem texto extra, no formato: " +
+      '{"title": "...", "description": "...", "category": "..."}.',
+    "O título deve ser curto e específico ao assunto discutido (não genérico tipo \"Curso de Programação\").",
+    "A descrição deve ter 1-2 frases resumindo o que o curso cobre.",
+    existingCategories.length > 0
+      ? `Categorias já existentes: ${existingCategories.join(", ")}. Se o assunto se encaixar bem em uma delas, reutilize exatamente esse nome. Só proponha uma categoria nova se nenhuma existente fizer sentido.`
+      : "Proponha uma categoria curta e genérica o suficiente pra agrupar cursos parecidos no futuro (ex: 'Tecnologia', 'Investimento', 'Arte').",
+  ].join(" ");
+
+  const conversationText = history
+    .map((m) => `${m.role === "user" ? "Aluno" : "Tutor"}: ${m.text}`)
+    .join("\n\n");
+
+  const raw = await generateContent(
+    [
+      {
+        role: "user",
+        parts: [
+          {
+            text: `Baseado nesta conversa, proponha um curso:\n\n${conversationText}`,
+          },
+        ],
+      },
+    ],
+    systemInstruction
+  );
+
+  const cleaned = raw
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```\s*$/i, "");
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error("Não foi possível interpretar a proposta de curso gerada.");
+  }
+
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    typeof (parsed as CourseProposal).title !== "string" ||
+    typeof (parsed as CourseProposal).description !== "string" ||
+    typeof (parsed as CourseProposal).category !== "string"
+  ) {
+    throw new Error("Formato de proposta de curso inesperado.");
+  }
+
+  return parsed as CourseProposal;
+}
+
 export interface QuizQuestion {
   question: string;
   options: string[];

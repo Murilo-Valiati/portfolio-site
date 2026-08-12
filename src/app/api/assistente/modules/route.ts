@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCourse, addCustomModule, removeCustomModule } from "@/lib/lms";
+import { findAnyCourse, addCustomModule, removeCustomModule } from "@/lib/lms";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const courseId = body?.courseId;
   const title = typeof body?.title === "string" ? body.title.trim() : "";
 
-  if (typeof courseId !== "string" || !getCourse(courseId) || !title) {
+  if (typeof courseId !== "string" || !title || !(await findAnyCourse(courseId))) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 

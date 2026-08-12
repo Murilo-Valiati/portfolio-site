@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCourse, addCustomLesson } from "@/lib/lms";
+import { findAnyCourse, addCustomLesson } from "@/lib/lms";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -9,9 +9,9 @@ export async function POST(req: NextRequest) {
 
   if (
     typeof courseId !== "string" ||
-    !getCourse(courseId) ||
     typeof moduleId !== "string" ||
-    !title
+    !title ||
+    !(await findAnyCourse(courseId))
   ) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
