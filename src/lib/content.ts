@@ -28,6 +28,7 @@ export interface SiteContent {
     name: string;
     shortName: string;
     title: string;
+    statusPill: string;
     bio: string;
     location: string;
     avatarInitials: string;
@@ -50,6 +51,7 @@ export const DEFAULT_CONTENT: SiteContent = {
     name: "Murilo Valiati",
     shortName: "MBV",
     title: "Desenvolvedor de Software",
+    statusPill: "Aberto a novas oportunidades",
     bio: "Apaixonado por tecnologia e por transformar ideias em produtos digitais. Atuo com desenvolvimento web, sempre buscando aprender novas ferramentas e boas práticas para entregar soluções simples e eficientes.",
     location: "Brasil",
     avatarInitials: "MV",

@@ -21,14 +21,13 @@ export default async function CoursePage({
   return (
     <>
       <div>
-        <Link
-          href="/assistente"
-          className="text-sm opacity-70 transition hover:opacity-100 hover:text-[var(--color-accent)]"
-        >
+        <Link href="/assistente" className="nav-link text-sm opacity-[.72] transition hover:opacity-100">
           ← Todos os cursos
         </Link>
-        <h1 className="mt-2 text-3xl font-bold">{course.title}</h1>
-        <p className="mt-2 max-w-2xl leading-relaxed opacity-80">
+        <h1 className="mt-2 font-[family-name:var(--font-display)] text-[32px] font-semibold tracking-[-0.01em]">
+          {course.title}
+        </h1>
+        <p className="mt-2 max-w-2xl text-[15px] leading-[1.7] opacity-[.85]">
           {course.description}
         </p>
       </div>
@@ -36,7 +35,9 @@ export default async function CoursePage({
       <div className="flex flex-col gap-8">
         {course.modules.map((mod) => (
           <section key={mod.id} className="flex flex-col gap-3">
-            <h2 className="text-xl font-semibold">{mod.title}</h2>
+            <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
+              {mod.title}
+            </h2>
             <div className="flex flex-col gap-2">
               {mod.lessons.map((lesson) => {
                 const done = completed.includes(lesson.id);
@@ -44,7 +45,7 @@ export default async function CoursePage({
                   <Link
                     key={lesson.id}
                     href={`/assistente/cursos/${course.id}/${lesson.id}`}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 transition hover:border-[var(--color-accent)]"
+                    className="hover-card flex items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3"
                   >
                     <span>{lesson.title}</span>
                     {done && (

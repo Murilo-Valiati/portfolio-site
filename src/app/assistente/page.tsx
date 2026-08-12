@@ -13,15 +13,17 @@ export default async function AssistentePage() {
   return (
     <>
       <section className="flex flex-col gap-3">
-        <h1 className="text-3xl font-bold">Assistente de Aprendizagem</h1>
-        <p className="max-w-2xl leading-relaxed opacity-80">
+        <h1 className="font-[family-name:var(--font-display)] text-[34px] font-semibold tracking-[-0.01em] sm:text-[40px]">
+          Assistente de Aprendizagem
+        </h1>
+        <p className="max-w-2xl text-[15px] leading-[1.7] opacity-[.85]">
           Sistema de gestão de aprendizagem com tutor de IA: escolha um curso,
           acompanhe seu progresso, converse com o tutor sobre cada lição e
           gere quizzes automáticos para testar o que aprendeu.
         </p>
       </section>
 
-      <section className="grid gap-6 sm:grid-cols-2">
+      <section className="grid gap-[22px] sm:grid-cols-2">
         {courses.map((course) => {
           const total = countLessons(course);
           const done = progress[course.id]?.length ?? 0;
@@ -30,20 +32,29 @@ export default async function AssistentePage() {
             <Link
               key={course.id}
               href={`/assistente/cursos/${course.id}`}
-              className="flex flex-col gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition hover:border-[var(--color-accent)]"
+              className="hover-card flex flex-col gap-3.5 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-[26px_28px]"
             >
-              <h2 className="font-semibold">{course.title}</h2>
-              <p className="text-sm leading-relaxed opacity-80">
+              <h2 className="font-[family-name:var(--font-display)] text-[17px] font-semibold">
+                {course.title}
+              </h2>
+              <p className="text-[14.5px] leading-[1.65] opacity-[.82]">
                 {course.description}
               </p>
-              <div className="mt-auto flex flex-col gap-1.5">
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-border)]">
+              <div className="mt-auto flex flex-col gap-2">
+                <div className="relative h-2 overflow-hidden rounded-full bg-[var(--color-border)]">
                   <div
-                    className="h-full rounded-full bg-[var(--color-accent)] transition-all"
-                    style={{ width: `${pct}%` }}
+                    className="absolute inset-0 rounded-full transition-[width] duration-500 ease-out"
+                    style={{
+                      width: `${pct}%`,
+                      background:
+                        "linear-gradient(90deg, var(--color-accent), var(--color-accent-strong))",
+                    }}
                   />
                 </div>
-                <span className="text-xs opacity-60">
+                <span
+                  className="text-[11px] text-[var(--color-muted)]"
+                  style={{ fontFamily: "var(--font-mono)" }}
+                >
                   {done}/{total} lições concluídas
                 </span>
               </div>

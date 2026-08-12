@@ -196,6 +196,20 @@ export default function AdminDashboard() {
           </label>
 
           <label className={labelClass}>
+            Selo de status (ao lado do cargo — deixe vazio pra ocultar)
+            <input
+              className={inputClass}
+              value={content.profile.statusPill}
+              onChange={(e) =>
+                setContent({
+                  ...content,
+                  profile: { ...content.profile, statusPill: e.target.value },
+                })
+              }
+            />
+          </label>
+
+          <label className={labelClass}>
             Bio
             <textarea
               className={`${inputClass} min-h-24`}

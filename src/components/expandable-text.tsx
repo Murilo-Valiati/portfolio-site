@@ -8,7 +8,7 @@ export function ExpandableText({ text }: { text: string }) {
   return (
     <div>
       <p
-        className={`text-sm leading-relaxed opacity-80 ${
+        className={`text-[14.5px] leading-[1.65] opacity-[.82] ${
           expanded ? "" : "line-clamp-3"
         }`}
       >

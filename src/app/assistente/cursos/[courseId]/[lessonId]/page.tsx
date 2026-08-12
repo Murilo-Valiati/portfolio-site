@@ -28,12 +28,14 @@ export default async function LessonPage({
       <div>
         <Link
           href={`/assistente/cursos/${course.id}`}
-          className="text-sm opacity-70 transition hover:opacity-100 hover:text-[var(--color-accent)]"
+          className="nav-link text-sm opacity-[.72] transition hover:opacity-100"
         >
           ← {course.title}
         </Link>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold">{lesson.title}</h1>
+          <h1 className="font-[family-name:var(--font-display)] text-[28px] font-semibold tracking-[-0.01em]">
+            {lesson.title}
+          </h1>
           <LessonProgressToggle
             courseId={course.id}
             lessonId={lesson.id}
@@ -42,7 +44,7 @@ export default async function LessonPage({
         </div>
       </div>
 
-      <article className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 leading-relaxed opacity-90">
+      <article className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-[26px_28px] text-[15px] leading-[1.75] opacity-[.92]">
         {lesson.content}
       </article>
 
