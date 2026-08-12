@@ -1,6 +1,35 @@
 "use client";
 
 import { useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+const markdownComponents: Components = {
+  p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+  ul: ({ node, ...props }) => (
+    <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0" {...props} />
+  ),
+  ol: ({ node, ...props }) => (
+    <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0" {...props} />
+  ),
+  li: ({ node, ...props }) => <li {...props} />,
+  strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
+  code: ({ node, ...props }) => (
+    <code
+      className="rounded bg-[var(--color-background)] px-1 py-0.5 text-[0.85em]"
+      style={{ fontFamily: "var(--font-mono)" }}
+      {...props}
+    />
+  ),
+  a: ({ node, ...props }) => (
+    <a
+      className="underline underline-offset-2 hover:text-[var(--color-accent)]"
+      target="_blank"
+      rel="noreferrer"
+      {...props}
+    />
+  ),
+};
 
 interface Message {
   role: "user" | "model";
@@ -50,13 +79,19 @@ export function ChatWidget({ courseContext }: { courseContext?: string }) {
         {messages.map((m, i) => (
           <div
             key={i}
-            className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
+            className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed ${
               m.role === "user"
-                ? "self-end bg-[var(--color-accent)] text-[var(--rich-black)]"
+                ? "self-end whitespace-pre-wrap bg-[var(--color-accent)] text-[var(--rich-black)]"
                 : "self-start border border-[var(--color-border)]"
             }`}
           >
-            {m.text}
+            {m.role === "model" ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {m.text}
+              </ReactMarkdown>
+            ) : (
+              m.text
+            )}
           </div>
         ))}
         {loading && (
