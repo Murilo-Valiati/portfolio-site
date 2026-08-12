@@ -1,4 +1,4 @@
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export interface ChatMessage {
