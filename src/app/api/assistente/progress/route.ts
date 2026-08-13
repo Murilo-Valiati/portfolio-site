@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { LMS_SESSION_COOKIE } from "@/middleware";
-import { getAllProgress, toggleLessonComplete, getCourse } from "@/lib/lms";
+import { getAllProgress, toggleLessonComplete, findAnyCourse } from "@/lib/lms";
 
 export async function GET() {
   const sessionId = (await cookies()).get(LMS_SESSION_COOKIE)?.value;
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     typeof courseId !== "string" ||
     typeof lessonId !== "string" ||
     typeof completed !== "boolean" ||
-    !getCourse(courseId)
+    !(await findAnyCourse(courseId))
   ) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
