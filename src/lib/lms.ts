@@ -300,6 +300,10 @@ export async function findAnyCourse(courseId: string): Promise<Course | undefine
   return custom.find((c) => c.id === courseId);
 }
 
+export function isCustomCourseId(courseId: string): boolean {
+  return !getCourse(courseId);
+}
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -326,6 +330,22 @@ export async function addCustomCourse(
   courses.push(course);
   await writeCustomCourses(courses);
   return course;
+}
+
+export async function removeCustomCourse(courseId: string): Promise<void> {
+  const courses = await readCustomCourses();
+  await writeCustomCourses(courses.filter((c) => c.id !== courseId));
+
+  // Limpa módulos, progresso e histórico de chat associados a esse curso.
+  const modulesStore = await readCustomModulesStore();
+  delete modulesStore[courseId];
+  await writeCustomModulesStore(modulesStore);
+
+  const progressStore = await readStore();
+  for (const sessionId of Object.keys(progressStore)) {
+    delete progressStore[sessionId][courseId];
+  }
+  await writeStore(progressStore);
 }
 
 interface ProgressStore {

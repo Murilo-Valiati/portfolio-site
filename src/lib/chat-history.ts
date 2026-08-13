@@ -37,6 +37,19 @@ export async function getChatHistory(
   return store[sessionId]?.[threadKey] ?? [];
 }
 
+export async function deleteChatThreadsForCourse(courseId: string): Promise<void> {
+  const store = await readStore();
+  const prefix = `${courseId}:`;
+  for (const sessionId of Object.keys(store)) {
+    for (const threadKey of Object.keys(store[sessionId])) {
+      if (threadKey.startsWith(prefix)) {
+        delete store[sessionId][threadKey];
+      }
+    }
+  }
+  await writeStore(store);
+}
+
 export async function appendChatExchange(
   sessionId: string,
   threadKey: string,

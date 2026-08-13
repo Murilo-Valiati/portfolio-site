@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addCustomCourse } from "@/lib/lms";
+import { addCustomCourse, isCustomCourseId, removeCustomCourse } from "@/lib/lms";
+import { deleteChatThreadsForCourse } from "@/lib/chat-history";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -17,4 +18,24 @@ export async function POST(req: NextRequest) {
 
   const course = await addCustomCourse(title, description, category);
   return NextResponse.json({ course });
+}
+
+export async function DELETE(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  const courseId = body?.courseId;
+
+  if (typeof courseId !== "string") {
+    return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
+  }
+
+  if (!isCustomCourseId(courseId)) {
+    return NextResponse.json(
+      { error: "Cursos padrão do site não podem ser removidos." },
+      { status: 400 }
+    );
+  }
+
+  await removeCustomCourse(courseId);
+  await deleteChatThreadsForCourse(courseId);
+  return NextResponse.json({ ok: true });
 }
