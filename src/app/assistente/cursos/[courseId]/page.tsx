@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { LMS_SESSION_COOKIE } from "@/middleware";
 import { findAnyCourse, getCustomModules, getProgress } from "@/lib/lms";
 import { CourseModules } from "@/components/assistente/course-modules";
+import { ChatWidget } from "@/components/assistente/chat-widget";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,11 @@ export default async function CoursePage({
         builtinModules={course.modules}
         initialCustomModules={customModules}
         completedLessons={completed}
+      />
+
+      <ChatWidget
+        courseContext={`Curso: ${course.title} — ${course.description}`}
+        threadKey={`${course.id}:geral`}
       />
     </>
   );
