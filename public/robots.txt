@@ -1,0 +1,2 @@
+User-agent: *
+Disallow: /log-5bda56349c8d

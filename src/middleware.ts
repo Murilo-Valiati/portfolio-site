@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/session";
 
 export const LMS_SESSION_COOKIE = "lms_session";
+export const DAILY_LOG_PATH = "/log-5bda56349c8d";
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -14,6 +15,7 @@ export async function middleware(req: NextRequest) {
 
   const isProtected =
     isAssistenteRoute ||
+    pathname === DAILY_LOG_PATH ||
     ((pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) &&
       !isPublicAdminRoute);
 
@@ -50,5 +52,6 @@ export const config = {
     "/api/admin/:path*",
     "/assistente/:path*",
     "/api/assistente/:path*",
+    "/log-5bda56349c8d",
   ],
 };

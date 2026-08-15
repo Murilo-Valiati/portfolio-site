@@ -18,6 +18,12 @@ const blocks = [
     description:
       "Acesse os cursos, converse com o tutor de IA e gere quizzes sobre as lições.",
   },
+  {
+    href: "/log-5bda56349c8d",
+    title: "Log do Dia",
+    description:
+      "Diário pessoal — treino, estudo, alimentação, sono, humor e outros hábitos.",
+  },
 ];
 
 export default function AdminHubPage() {
