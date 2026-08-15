@@ -24,6 +24,12 @@ const blocks = [
     description:
       "Diário pessoal — treino, estudo, alimentação, sono, humor e outros hábitos.",
   },
+  {
+    href: "/admin/agenda",
+    title: "Agenda",
+    description:
+      "Rastreador de hábitos — hábito âncora, bons e maus hábitos, progresso diário.",
+  },
 ];
 
 export default function AdminHubPage() {
