@@ -13,6 +13,32 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
+const TAG_REGEX = /,?\s*tag[s]?\s+([a-zà-úA-ZÀ-Ú0-9-]+)\.?/gi;
+const SUBMIT_REGEX = /,?\s*registrar\s+(o\s+)?log\.?/gi;
+const SUBMIT_TEST_REGEX = /registrar\s+(o\s+)?log\.?/i;
+
+function parseTranscription(raw: string) {
+  let text = raw;
+  const tags: string[] = [];
+
+  text = text.replace(TAG_REGEX, (_match, words: string) => {
+    tags.push(
+      words
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+    );
+    return " ";
+  });
+
+  const autoSubmit = SUBMIT_TEST_REGEX.test(text);
+  text = text.replace(SUBMIT_REGEX, " ");
+
+  text = text.replace(/\s{2,}/g, " ").replace(/\s+([,.;])/g, "$1").trim();
+
+  return { text, tags, autoSubmit };
+}
+
 export function DailyLogForm() {
   const router = useRouter();
   const [text, setText] = useState("");
@@ -23,6 +49,39 @@ export function DailyLogForm() {
   const [transcribing, setTranscribing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const textRef = useRef(text);
+  const tagsInputRef = useRef(tagsInput);
+  textRef.current = text;
+  tagsInputRef.current = tagsInput;
+
+  async function submitEntry(finalText: string, finalTagsInput: string) {
+    if (!finalText.trim() || saving) return;
+    setSaving(true);
+    setError(null);
+
+    const tags = finalTagsInput
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const res = await fetch("/api/log-do-dia", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: finalText.trim(), tags }),
+    });
+
+    setSaving(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Erro ao salvar.");
+      return;
+    }
+
+    setText("");
+    setTagsInput("");
+    router.refresh();
+  }
 
   async function handleRecordClick() {
     if (recording) {
@@ -65,7 +124,28 @@ export function DailyLogForm() {
         }
 
         const data = await res.json();
-        setText((prev) => (prev.trim() ? `${prev.trim()}\n${data.text}` : data.text));
+        const { text: parsedText, tags: extractedTags, autoSubmit } = parseTranscription(
+          data.text
+        );
+
+        const mergedText = textRef.current.trim()
+          ? `${textRef.current.trim()}\n${parsedText}`
+          : parsedText;
+
+        const existingTags = tagsInputRef.current
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean);
+        const mergedTagsInput = Array.from(new Set([...existingTags, ...extractedTags])).join(
+          ", "
+        );
+
+        setText(mergedText);
+        setTagsInput(mergedTagsInput);
+
+        if (autoSubmit) {
+          submitEntry(mergedText, mergedTagsInput);
+        }
       };
 
       mediaRecorderRef.current = recorder;
@@ -76,34 +156,9 @@ export function DailyLogForm() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim() || saving) return;
-    setSaving(true);
-    setError(null);
-
-    const tags = tagsInput
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-
-    const res = await fetch("/api/log-do-dia", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text.trim(), tags }),
-    });
-
-    setSaving(false);
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || "Erro ao salvar.");
-      return;
-    }
-
-    setText("");
-    setTagsInput("");
-    router.refresh();
+    submitEntry(text, tagsInput);
   }
 
   return (
