@@ -3,29 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DayEntry, Habit, HabitCategory } from "@/lib/agenda";
 
-const COLORS = {
-  bg: "#080b0f",
-  frame: "#0d1117",
-  panel: "#161b23",
-  panel2: "#1d2430",
-  line: "#262e3a",
-  text: "#EDEAE0",
-  muted: "#8B93A1",
-  muted2: "#5c6472",
-  gold: "#C89B3C",
-  teal: "#3FA7A0",
-  red: "#C1443C",
-};
-
-const CATEGORY_META: Record<
-  HabitCategory,
-  { label: string; icon: string; accent: string }
-> = {
-  ancora: { label: "Hábito Âncora", icon: "⚓", accent: COLORS.gold },
-  bom: { label: "Bons Hábitos", icon: "↑", accent: COLORS.teal },
-  mau: { label: "Maus Hábitos (evitar)", icon: "↓", accent: COLORS.red },
-};
-
 const WEEKDAYS = [
   "Domingo",
   "Segunda-feira",
@@ -37,9 +14,35 @@ const WEEKDAYS = [
 ];
 
 const MONTHS = [
-  "JAN", "FEV", "MAR", "ABR", "MAI", "JUN",
-  "JUL", "AGO", "SET", "OUT", "NOV", "DEZ",
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
 ];
+
+const LEDGER_DAYS = 28;
+
+const CATEGORY_COPY: Record<
+  HabitCategory,
+  { label: string; hint: string; placeholder: string; action: string }
+> = {
+  ancora: {
+    label: "Âncora",
+    hint: "O inegociável. Se só uma coisa acontecer hoje, é esta.",
+    placeholder: "O que sustenta o resto do dia?",
+    action: "Cumpri",
+  },
+  bom: {
+    label: "Construir",
+    hint: "O que você quer que vire padrão.",
+    placeholder: "Novo hábito para construir",
+    action: "Feito",
+  },
+  mau: {
+    label: "Evitar",
+    hint: "Marcar aqui é vitória: o dia passou sem isso.",
+    placeholder: "Novo hábito para evitar",
+    action: "Evitei",
+  },
+};
 
 function toDateKey(d: Date): string {
   const y = d.getFullYear();
@@ -48,184 +51,76 @@ function toDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function formatDateKey(key: string) {
-  const [y, m, d] = key.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  return { weekday: WEEKDAYS[date.getDay()], label: `${d} ${MONTHS[m - 1]}` };
-}
-
-function Ring({
-  cx,
-  cy,
-  r,
-  strokeWidth,
-  percent,
-  color,
-  labelSize = 20,
-}: {
-  cx: number;
-  cy: number;
-  r: number;
-  strokeWidth: number;
-  percent: number;
-  color: string;
-  labelSize?: number;
-}) {
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference * (1 - Math.min(Math.max(percent, 0), 100) / 100);
-  return (
-    <>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke={COLORS.line} strokeWidth={strokeWidth} />
-      <circle
-        cx={cx}
-        cy={cy}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${cx} ${cy})`}
-        style={{ transition: "stroke-dashoffset 0.4s ease" }}
-      />
-      <text
-        x={cx}
-        y={cy + labelSize * 0.32}
-        textAnchor="middle"
-        fill={COLORS.text}
-        fontFamily="var(--font-mono)"
-        fontSize={labelSize}
-        fontWeight={600}
-      >
-        {Math.round(percent)}%
-      </text>
-    </>
-  );
-}
-
-function Checkbox({ state }: { state: "empty" | "done" | "avoided" }) {
-  if (state === "done") {
-    return (
-      <div
-        style={{
-          width: 18,
-          height: 18,
-          borderRadius: 5,
-          background: COLORS.teal,
-          border: `1.5px solid ${COLORS.teal}`,
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 11,
-          fontWeight: 700,
-          color: COLORS.bg,
-        }}
-      >
-        ✓
-      </div>
-    );
+function lastNDates(n: number): string[] {
+  const out: string[] = [];
+  const cursor = new Date();
+  for (let i = 0; i < n; i++) {
+    out.unshift(toDateKey(cursor));
+    cursor.setDate(cursor.getDate() - 1);
   }
-  if (state === "avoided") {
-    return (
-      <div
-        style={{
-          width: 18,
-          height: 18,
-          borderRadius: 5,
-          background: "transparent",
-          border: `1.5px solid ${COLORS.red}`,
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 12,
-          color: COLORS.red,
-        }}
-      >
-        —
-      </div>
-    );
-  }
-  return (
-    <div
-      style={{
-        width: 18,
-        height: 18,
-        borderRadius: 5,
-        border: `1.5px solid ${COLORS.muted2}`,
-        flexShrink: 0,
-      }}
-    />
-  );
+  return out;
 }
 
 export function AgendaTracker() {
-  const [tab, setTab] = useState<"painel" | "hoje" | "planejador">("painel");
   const [habits, setHabits] = useState<Habit[]>([]);
   const [dayEntry, setDayEntry] = useState<DayEntry | null>(null);
   const [recentDays, setRecentDays] = useState<DayEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newHabitName, setNewHabitName] = useState<Record<HabitCategory, string>>({
+  const [drafts, setDrafts] = useState<Record<HabitCategory, string>>({
     ancora: "",
     bom: "",
     mau: "",
   });
 
   const todayKey = useMemo(() => toDateKey(new Date()), []);
-  const { weekday, label: dateLabel } = formatDateKey(todayKey);
+  const today = useMemo(() => new Date(), []);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/admin/agenda/habits").then((r) => r.json()),
       fetch(`/api/admin/agenda/day?date=${todayKey}`).then((r) => r.json()),
-      fetch("/api/admin/agenda/days?count=90").then((r) => r.json()),
-    ]).then(([habitsData, dayData, daysData]) => {
-      setHabits(habitsData.habits || []);
-      setDayEntry(dayData.day);
-      setRecentDays(daysData.days || []);
+      fetch(`/api/admin/agenda/days?count=${LEDGER_DAYS}`).then((r) => r.json()),
+    ]).then(([h, d, ds]) => {
+      setHabits(h.habits || []);
+      setDayEntry(d.day);
+      setRecentDays(ds.days || []);
       setLoading(false);
     });
   }, [todayKey]);
 
-  const checked = new Set(dayEntry?.checked || []);
+  const checked = useMemo(
+    () => new Set(dayEntry?.checked || []),
+    [dayEntry]
+  );
 
   const byCategory = useMemo(() => {
-    const groups: Record<HabitCategory, Habit[]> = { ancora: [], bom: [], mau: [] };
-    for (const h of habits) groups[h.category].push(h);
-    return groups;
+    const g: Record<HabitCategory, Habit[]> = { ancora: [], bom: [], mau: [] };
+    for (const h of habits) g[h.category].push(h);
+    return g;
   }, [habits]);
 
-  function pct(category: HabitCategory) {
-    const list = byCategory[category];
-    if (list.length === 0) return 0;
-    const done = list.filter((h) => checked.has(h.id)).length;
-    return (done / list.length) * 100;
-  }
+  const doneCount = habits.filter((h) => checked.has(h.id)).length;
+  const overallPct = habits.length ? Math.round((doneCount / habits.length) * 100) : 0;
 
-  const overallPct = useMemo(() => {
-    if (habits.length === 0) return 0;
-    const done = habits.filter((h) => checked.has(h.id)).length;
-    return (done / habits.length) * 100;
-  }, [habits, checked]);
+  const historyByDate = useMemo(() => {
+    const map = new Map<string, Set<string>>(
+      recentDays.map((d) => [d.date, new Set(d.checked)])
+    );
+    map.set(todayKey, checked);
+    return map;
+  }, [recentDays, checked, todayKey]);
 
   const streak = useMemo(() => {
-    const anchorHabits = byCategory.ancora;
-    if (anchorHabits.length === 0) return 0;
-
-    const byDate = new Map(recentDays.map((d) => [d.date, new Set(d.checked)]));
-    // include today's live (possibly unsaved-to-list) state
-    byDate.set(todayKey, checked);
+    const anchors = byCategory.ancora;
+    if (anchors.length === 0) return 0;
 
     let count = 0;
     const cursor = new Date();
     for (let i = 0; i < 365; i++) {
       const key = toDateKey(cursor);
-      const dayChecked = byDate.get(key);
-      const allDone =
-        !!dayChecked && anchorHabits.every((h) => dayChecked.has(h.id));
-      if (!allDone) {
+      const dayChecked = historyByDate.get(key);
+      const held = !!dayChecked && anchors.every((h) => dayChecked.has(h.id));
+      if (!held) {
         if (key === todayKey) {
           cursor.setDate(cursor.getDate() - 1);
           continue;
@@ -236,25 +131,26 @@ export function AgendaTracker() {
       cursor.setDate(cursor.getDate() - 1);
     }
     return count;
-  }, [recentDays, byCategory.ancora, checked, todayKey]);
+  }, [historyByDate, byCategory.ancora, todayKey]);
 
-  async function toggleHabit(habitId: string) {
-    const isChecked = checked.has(habitId);
+  async function toggle(habitId: string) {
+    const isOn = checked.has(habitId);
     const next = new Set(checked);
-    if (isChecked) next.delete(habitId);
+    if (isOn) next.delete(habitId);
     else next.add(habitId);
     setDayEntry({ date: todayKey, checked: Array.from(next) });
 
     await fetch("/api/admin/agenda/day", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: todayKey, habitId, checked: !isChecked }),
+      body: JSON.stringify({ date: todayKey, habitId, checked: !isOn }),
     });
   }
 
   async function addHabit(category: HabitCategory) {
-    const name = newHabitName[category].trim();
+    const name = drafts[category].trim();
     if (!name) return;
+    setDrafts((p) => ({ ...p, [category]: "" }));
 
     const res = await fetch("/api/admin/agenda/habits", {
       method: "POST",
@@ -262,506 +158,482 @@ export function AgendaTracker() {
       body: JSON.stringify({ name, category }),
     });
     const data = await res.json();
-    setHabits((prev) => [...prev, data.habit]);
-    setNewHabitName((prev) => ({ ...prev, [category]: "" }));
+    if (data.habit) setHabits((p) => [...p, data.habit]);
   }
 
   async function removeHabit(id: string) {
-    setHabits((prev) => prev.filter((h) => h.id !== id));
+    setHabits((p) => p.filter((h) => h.id !== id));
     await fetch(`/api/admin/agenda/habits?id=${id}`, { method: "DELETE" });
   }
 
   if (loading) {
     return (
-      <div style={{ background: COLORS.bg, minHeight: "100vh", color: COLORS.muted, padding: 40 }}>
-        Carregando...
-      </div>
+      <main className="min-h-screen bg-[var(--color-background)] px-6 py-16 text-[var(--color-foreground)]">
+        <p className="mx-auto max-w-5xl font-[family-name:var(--font-mono)] text-sm opacity-60">
+          Carregando…
+        </p>
+      </main>
     );
   }
 
   return (
-    <div style={{ background: COLORS.bg, minHeight: "100vh", fontFamily: "var(--font-body)" }}>
-      <div
-        style={{
-          maxWidth: 480,
-          margin: "0 auto",
-          minHeight: "100vh",
-          background: COLORS.frame,
-          borderLeft: `1px solid ${COLORS.line}`,
-          borderRight: `1px solid ${COLORS.line}`,
-          color: COLORS.text,
-        }}
-      >
-        <header style={{ padding: "26px 22px 16px", borderBottom: `1px solid ${COLORS.line}` }}>
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: COLORS.gold,
-              marginBottom: 8,
-            }}
+    <main className="min-h-screen bg-[var(--color-background)] px-6 py-10 text-[var(--color-foreground)] sm:px-10 sm:py-14">
+      <div className="mx-auto flex max-w-5xl flex-col gap-12">
+        <Header
+          weekday={WEEKDAYS[today.getDay()]}
+          dayNum={today.getDate()}
+          month={MONTHS[today.getMonth()]}
+          streak={streak}
+          doneCount={doneCount}
+          total={habits.length}
+          overallPct={overallPct}
+        />
+
+        <AnchorSection
+          habits={byCategory.ancora}
+          checked={checked}
+          draft={drafts.ancora}
+          setDraft={(v) => setDrafts((p) => ({ ...p, ancora: v }))}
+          onAdd={() => addHabit("ancora")}
+          onToggle={toggle}
+          onRemove={removeHabit}
+        />
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <HabitColumn
+            category="bom"
+            habits={byCategory.bom}
+            checked={checked}
+            draft={drafts.bom}
+            setDraft={(v) => setDrafts((p) => ({ ...p, bom: v }))}
+            onAdd={() => addHabit("bom")}
+            onToggle={toggle}
+            onRemove={removeHabit}
+          />
+          <HabitColumn
+            category="mau"
+            habits={byCategory.mau}
+            checked={checked}
+            draft={drafts.mau}
+            setDraft={(v) => setDrafts((p) => ({ ...p, mau: v }))}
+            onAdd={() => addHabit("mau")}
+            onToggle={toggle}
+            onRemove={removeHabit}
+          />
+        </div>
+
+        <Ledger habits={habits} historyByDate={historyByDate} todayKey={todayKey} />
+      </div>
+    </main>
+  );
+}
+
+function Header({
+  weekday,
+  dayNum,
+  month,
+  streak,
+  doneCount,
+  total,
+  overallPct,
+}: {
+  weekday: string;
+  dayNum: number;
+  month: string;
+  streak: number;
+  doneCount: number;
+  total: number;
+  overallPct: number;
+}) {
+  return (
+    <header className="flex flex-col gap-8 border-b border-[var(--color-border)] pb-8">
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <a
+            href="/admin"
+            className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] text-[var(--color-accent)] hover:underline"
           >
-            Agenda · Diário de Bordo
-          </div>
-          <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 600, fontSize: 26 }}>
+            ← Painel · Agenda
+          </a>
+          <h1 className="mt-3 font-[family-name:var(--font-display)] text-[38px] font-semibold leading-[1.05] sm:text-[46px]">
             {weekday}
           </h1>
-          <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 6, fontFamily: "var(--font-mono)" }}>
-            {dateLabel}
+          <p className="mt-2 font-[family-name:var(--font-mono)] text-sm opacity-60">
+            {dayNum} de {month}
           </p>
-        </header>
-
-        <div style={{ display: "flex", gap: 4, padding: "14px 22px 0", borderBottom: `1px solid ${COLORS.line}` }}>
-          {(["painel", "hoje", "planejador"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              style={{
-                flex: 1,
-                textAlign: "center",
-                padding: "10px 4px 12px",
-                fontSize: 12.5,
-                color: tab === t ? COLORS.text : COLORS.muted,
-                borderBottom: `2px solid ${tab === t ? COLORS.gold : "transparent"}`,
-                background: "none",
-                border: "none",
-                borderBottomWidth: 2,
-                borderBottomStyle: "solid",
-                borderBottomColor: tab === t ? COLORS.gold : "transparent",
-                cursor: "pointer",
-                fontWeight: 500,
-                fontFamily: "inherit",
-                textTransform: "capitalize",
-              }}
-            >
-              {t}
-            </button>
-          ))}
         </div>
 
-        <div style={{ padding: 22 }}>
-          {tab === "painel" && (
-            <PainelTab
-              streak={streak}
-              overallPct={overallPct}
-              ancoraPct={pct("ancora")}
-              bomPct={pct("bom")}
-              mauPct={pct("mau")}
-              onNavigate={setTab}
-            />
-          )}
-
-          {tab === "hoje" && (
-            <HojeTab
-              byCategory={byCategory}
-              checked={checked}
-              overallPct={overallPct}
-              onToggle={toggleHabit}
-              onRemove={removeHabit}
-              newHabitName={newHabitName}
-              setNewHabitName={setNewHabitName}
-              onAdd={addHabit}
-            />
-          )}
-
-          {tab === "planejador" && (
-            <PlanejadorTab
-              habits={[...byCategory.ancora, ...byCategory.bom]}
-              checked={checked}
-              dateLabel={dateLabel}
-            />
-          )}
+        <div className="flex items-end gap-10">
+          <Metric value={String(streak)} unit="dias" label="âncora sustentada" emphasis />
+          <Metric value={`${doneCount}/${total}`} unit="" label="marcados hoje" />
         </div>
       </div>
-    </div>
+
+      <div>
+        <div className="h-[3px] w-full overflow-hidden rounded-full bg-[var(--color-border)]">
+          <div
+            className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-500 ease-out motion-reduce:transition-none"
+            style={{ width: `${overallPct}%` }}
+          />
+        </div>
+      </div>
+    </header>
   );
 }
 
-function PainelTab({
-  streak,
-  overallPct,
-  ancoraPct,
-  bomPct,
-  mauPct,
-  onNavigate,
+function Metric({
+  value,
+  unit,
+  label,
+  emphasis,
 }: {
-  streak: number;
-  overallPct: number;
-  ancoraPct: number;
-  bomPct: number;
-  mauPct: number;
-  onNavigate: (t: "painel" | "hoje" | "planejador") => void;
+  value: string;
+  unit: string;
+  label: string;
+  emphasis?: boolean;
 }) {
   return (
-    <>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 22 }}>
-        <Stat label="sequência do hábito âncora" value={`${streak}d`} color={COLORS.gold} />
-        <Stat label="progresso do dia" value={`${Math.round(overallPct)}%`} color={COLORS.teal} />
+    <div>
+      <div className="flex items-baseline gap-1.5">
+        <span
+          className={`font-[family-name:var(--font-mono)] text-[34px] font-semibold leading-none ${
+            emphasis ? "text-[var(--color-accent)]" : ""
+          }`}
+        >
+          {value}
+        </span>
+        {unit && (
+          <span className="font-[family-name:var(--font-mono)] text-xs opacity-50">{unit}</span>
+        )}
       </div>
-
-      <div style={{ display: "flex", justifyContent: "center", padding: "20px 0 4px" }}>
-        <svg viewBox="0 0 300 220" style={{ width: "100%", maxWidth: 300, height: "auto" }}>
-          <Ring cx={150} cy={105} r={62} strokeWidth={10} percent={overallPct} color={COLORS.gold} labelSize={22} />
-          <text x={150} y={128} textAnchor="middle" fill={COLORS.muted} fontFamily="var(--font-body)" fontSize={9} letterSpacing={1}>
-            GERAL
-          </text>
-
-          <Ring cx={55} cy={175} r={30} strokeWidth={7} percent={ancoraPct} color={COLORS.gold} labelSize={12} />
-          <Ring cx={245} cy={175} r={30} strokeWidth={7} percent={bomPct} color={COLORS.teal} labelSize={12} />
-
-          <circle cx={245} cy={175} r={30} fill="none" stroke={COLORS.line} strokeWidth={7} style={{ opacity: 0 }} />
-
-          <text x={55} y={215} textAnchor="middle" fill={COLORS.muted} fontFamily="var(--font-body)" fontSize={9}>
-            ÂNCORA
-          </text>
-          <text x={245} y={215} textAnchor="middle" fill={COLORS.muted} fontFamily="var(--font-body)" fontSize={9}>
-            BONS HÁBITOS
-          </text>
-        </svg>
-      </div>
-
-      <div
-        style={{
-          textAlign: "center",
-          fontFamily: "var(--font-mono)",
-          fontSize: 12,
-          color: COLORS.red,
-          marginTop: -8,
-          marginBottom: 20,
-        }}
-      >
-        maus hábitos evitados hoje: {Math.round(mauPct)}%
-      </div>
-
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 11,
-          fontWeight: 600,
-          color: COLORS.muted,
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          margin: "10px 0 12px",
-        }}
-      >
-        Navegar
-      </div>
-      <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.line}`, borderRadius: 10, overflow: "hidden" }}>
-        <NavItem label="Hoje — checklist do dia" onClick={() => onNavigate("hoje")} />
-        <NavItem label="Planejador — visão em cards" onClick={() => onNavigate("planejador")} last />
-      </div>
-    </>
-  );
-}
-
-function Stat({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: 14 }}>
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: 22, fontWeight: 600, color }}>{value}</div>
-      <div style={{ fontSize: 11, color: COLORS.muted, marginTop: 4 }}>{label}</div>
+      <div className="mt-2 text-[12.5px] opacity-60">{label}</div>
     </div>
   );
 }
 
-function NavItem({ label, onClick, last }: { label: string; onClick: () => void; last?: boolean }) {
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        width: "100%",
-        textAlign: "left",
-        padding: "12px 14px",
-        fontSize: 13.5,
-        borderBottom: last ? "none" : `1px solid ${COLORS.line}`,
-        background: "none",
-        border: "none",
-        borderBottomWidth: last ? 0 : 1,
-        borderBottomStyle: "solid",
-        borderBottomColor: COLORS.line,
-        color: COLORS.text,
-        cursor: "pointer",
-        fontFamily: "inherit",
-      }}
-    >
-      {label}
-    </button>
+    <h2 className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.18em] opacity-55">
+      {children}
+    </h2>
   );
 }
 
-function HojeTab({
-  byCategory,
-  checked,
-  overallPct,
+function Mark({
+  category,
+  on,
+}: {
+  category: HabitCategory;
+  on: boolean;
+}) {
+  const base =
+    "flex shrink-0 items-center justify-center transition-all duration-200 motion-reduce:transition-none";
+
+  if (category === "ancora") {
+    return (
+      <span
+        className={`${base} h-7 w-7 rounded-[9px] border-2 ${
+          on
+            ? "border-[var(--color-accent)] bg-[var(--color-accent)]"
+            : "border-[var(--color-accent)]/45 bg-transparent"
+        }`}
+      >
+        {on && (
+          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" aria-hidden="true">
+            <path
+              d="M3 8.5l3.2 3.2L13 5"
+              stroke="var(--color-background)"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </span>
+    );
+  }
+
+  if (category === "mau") {
+    return (
+      <span
+        className={`${base} h-[22px] w-[22px] rounded-full border-2 ${
+          on
+            ? "border-[var(--color-accent)] bg-[var(--color-accent)]/15"
+            : "border-[var(--color-border)] bg-transparent"
+        }`}
+      >
+        {on && <span className="h-[2.5px] w-[10px] rounded-full bg-[var(--color-accent)]" />}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className={`${base} h-[22px] w-[22px] rounded-md border-2 ${
+        on
+          ? "border-[var(--color-accent)] bg-[var(--color-accent)]"
+          : "border-[var(--color-border)] bg-transparent"
+      }`}
+    >
+      {on && (
+        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+          <path
+            d="M3 8.5l3.2 3.2L13 5"
+            stroke="var(--color-background)"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+    </span>
+  );
+}
+
+function HabitRow({
+  habit,
+  on,
   onToggle,
   onRemove,
-  newHabitName,
-  setNewHabitName,
-  onAdd,
+  large,
 }: {
-  byCategory: Record<HabitCategory, Habit[]>;
-  checked: Set<string>;
-  overallPct: number;
+  habit: Habit;
+  on: boolean;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
-  newHabitName: Record<HabitCategory, string>;
-  setNewHabitName: React.Dispatch<React.SetStateAction<Record<HabitCategory, string>>>;
-  onAdd: (category: HabitCategory) => void;
+  large?: boolean;
 }) {
   return (
-    <>
-      <div
-        style={{
-          height: 6,
-          background: COLORS.panel2,
-          borderRadius: 4,
-          margin: "0 0 24px",
-          overflow: "hidden",
-        }}
+    <div className="group flex items-center gap-3">
+      <button
+        onClick={() => onToggle(habit.id)}
+        className="flex items-center gap-3 rounded-md py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)]"
+        aria-pressed={on}
       >
-        <div
-          style={{
-            height: "100%",
-            width: `${overallPct}%`,
-            background: `linear-gradient(90deg, ${COLORS.gold}, ${COLORS.teal})`,
-            borderRadius: 4,
-            transition: "width 0.3s ease",
-          }}
-        />
-      </div>
+        <Mark category={habit.category} on={on} />
+        <span
+          className={`${large ? "text-[17px]" : "text-[14.5px]"} leading-snug transition-opacity ${
+            on ? "opacity-55" : "opacity-100"
+          }`}
+        >
+          {habit.name}
+        </span>
+      </button>
 
-      {(["ancora", "bom", "mau"] as const).map((category) => (
-        <HabitCard
-          key={category}
-          category={category}
-          habits={byCategory[category]}
-          checked={checked}
-          onToggle={onToggle}
-          onRemove={onRemove}
-          newName={newHabitName[category]}
-          setNewName={(v) => setNewHabitName((prev) => ({ ...prev, [category]: v }))}
-          onAdd={() => onAdd(category)}
-        />
-      ))}
-    </>
+      <button
+        onClick={() => onRemove(habit.id)}
+        className="ml-auto font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-0 transition-opacity hover:underline focus-visible:opacity-60 group-hover:opacity-45"
+        aria-label={`Remover ${habit.name}`}
+      >
+        remover
+      </button>
+    </div>
   );
 }
 
-function HabitCard({
+function AddHabit({
+  value,
+  onChange,
+  onAdd,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onAdd: () => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 border-t border-[var(--color-border)] pt-3">
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onAdd();
+        }}
+        placeholder={placeholder}
+        className="min-w-0 flex-1 bg-transparent py-1 text-[14px] outline-none placeholder:opacity-40"
+      />
+      <button
+        onClick={onAdd}
+        disabled={!value.trim()}
+        className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--color-accent)] transition-opacity hover:underline disabled:opacity-30 disabled:hover:no-underline"
+      >
+        adicionar
+      </button>
+    </div>
+  );
+}
+
+function AnchorSection({
+  habits,
+  checked,
+  draft,
+  setDraft,
+  onAdd,
+  onToggle,
+  onRemove,
+}: {
+  habits: Habit[];
+  checked: Set<string>;
+  draft: string;
+  setDraft: (v: string) => void;
+  onAdd: () => void;
+  onToggle: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const copy = CATEGORY_COPY.ancora;
+
+  return (
+    <section className="flex flex-col gap-5 rounded-[14px] border border-[var(--color-accent)]/35 bg-[var(--color-surface)] p-7 sm:p-8">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <SectionLabel>{copy.label}</SectionLabel>
+        <p className="text-[12.5px] opacity-55">{copy.hint}</p>
+      </div>
+
+      {habits.length === 0 ? (
+        <p className="text-[14.5px] opacity-45">
+          Escolha o hábito que ancora o seu dia.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {habits.map((h) => (
+            <HabitRow
+              key={h.id}
+              habit={h}
+              on={checked.has(h.id)}
+              onToggle={onToggle}
+              onRemove={onRemove}
+              large
+            />
+          ))}
+        </div>
+      )}
+
+      <AddHabit
+        value={draft}
+        onChange={setDraft}
+        onAdd={onAdd}
+        placeholder={copy.placeholder}
+      />
+    </section>
+  );
+}
+
+function HabitColumn({
   category,
   habits,
   checked,
+  draft,
+  setDraft,
+  onAdd,
   onToggle,
   onRemove,
-  newName,
-  setNewName,
-  onAdd,
 }: {
   category: HabitCategory;
   habits: Habit[];
   checked: Set<string>;
+  draft: string;
+  setDraft: (v: string) => void;
+  onAdd: () => void;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
-  newName: string;
-  setNewName: (v: string) => void;
-  onAdd: () => void;
 }) {
-  const meta = CATEGORY_META[category];
-  const isAnchor = category === "ancora";
-  const isMau = category === "mau";
+  const copy = CATEGORY_COPY[category];
+  const done = habits.filter((h) => checked.has(h.id)).length;
 
   return (
-    <div
-      style={{
-        border: `1px solid ${isAnchor ? "rgba(200,155,60,0.4)" : COLORS.line}`,
-        borderRadius: 10,
-        padding: 14,
-        marginBottom: 12,
-        background: isAnchor
-          ? `linear-gradient(180deg, rgba(200,155,60,0.08), transparent), ${COLORS.panel}`
-          : COLORS.panel,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          fontSize: 10.5,
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          color: isAnchor ? COLORS.gold : COLORS.muted,
-          marginBottom: 10,
-        }}
-      >
-        <span>{meta.icon}</span>
-        <span>{meta.label}</span>
+    <section className="flex flex-col gap-5 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-7">
+      <div className="flex items-baseline justify-between gap-3">
+        <SectionLabel>{copy.label}</SectionLabel>
+        {habits.length > 0 && (
+          <span className="font-[family-name:var(--font-mono)] text-[11.5px] opacity-45">
+            {done}/{habits.length}
+          </span>
+        )}
       </div>
 
-      {habits.length === 0 && (
-        <p style={{ fontSize: 12.5, color: COLORS.muted2, marginBottom: 10 }}>
-          Nenhum hábito cadastrado ainda.
-        </p>
+      <p className="-mt-2 text-[12.5px] opacity-55">{copy.hint}</p>
+
+      {habits.length === 0 ? (
+        <p className="text-[14px] opacity-45">Nada aqui ainda.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {habits.map((h) => (
+            <HabitRow
+              key={h.id}
+              habit={h}
+              on={checked.has(h.id)}
+              onToggle={onToggle}
+              onRemove={onRemove}
+            />
+          ))}
+        </div>
       )}
 
-      {habits.map((h, i) => {
-        const isChecked = checked.has(h.id);
-        return (
-          <div
-            key={h.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "9px 0",
-              borderTop: i === 0 ? "none" : `1px solid ${COLORS.line}`,
-              fontSize: 13.5,
-            }}
-          >
-            <button
-              onClick={() => onToggle(h.id)}
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex" }}
-              aria-label={isChecked ? "Desmarcar" : "Marcar"}
-            >
-              <Checkbox state={isChecked ? (isMau ? "avoided" : "done") : "empty"} />
-            </button>
-            <span
-              style={{
-                flex: 1,
-                color: isChecked && !isMau ? COLORS.muted : COLORS.text,
-                textDecoration: isChecked && !isMau ? "line-through" : "none",
-                textDecorationColor: COLORS.muted2,
-              }}
-            >
-              {h.name}
-            </span>
-            <button
-              onClick={() => onRemove(h.id)}
-              style={{
-                background: "none",
-                border: "none",
-                color: COLORS.muted2,
-                fontSize: 11,
-                cursor: "pointer",
-                padding: "2px 4px",
-              }}
-              aria-label="Remover hábito"
-            >
-              remover
-            </button>
-          </div>
-        );
-      })}
-
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onAdd();
-          }}
-          placeholder={isAnchor ? "Novo hábito âncora..." : isMau ? "Novo hábito a evitar..." : "Novo bom hábito..."}
-          style={{
-            flex: 1,
-            background: COLORS.panel2,
-            border: `1px solid ${COLORS.line}`,
-            borderRadius: 6,
-            padding: "6px 10px",
-            fontSize: 12.5,
-            color: COLORS.text,
-            outline: "none",
-          }}
+      <div className="mt-auto">
+        <AddHabit
+          value={draft}
+          onChange={setDraft}
+          onAdd={onAdd}
+          placeholder={copy.placeholder}
         />
-        <button
-          onClick={onAdd}
-          style={{
-            background: "none",
-            border: `1px solid ${meta.accent}`,
-            color: meta.accent,
-            borderRadius: 6,
-            padding: "6px 12px",
-            fontSize: 12.5,
-            cursor: "pointer",
-          }}
-        >
-          + adicionar
-        </button>
       </div>
-    </div>
+    </section>
   );
 }
 
-function PlanejadorTab({
+function Ledger({
   habits,
-  checked,
-  dateLabel,
+  historyByDate,
+  todayKey,
 }: {
   habits: Habit[];
-  checked: Set<string>;
-  dateLabel: string;
+  historyByDate: Map<string, Set<string>>;
+  todayKey: string;
 }) {
+  const dates = useMemo(() => lastNDates(LEDGER_DAYS), []);
+
+  if (habits.length === 0) return null;
+
   return (
-    <>
-      <div
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 11,
-          fontWeight: 600,
-          color: COLORS.muted,
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          margin: "0 0 12px",
-        }}
-      >
-        Planejador diário
+    <section className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <SectionLabel>Constância · últimos {LEDGER_DAYS} dias</SectionLabel>
+        <p className="text-[12.5px] opacity-55">
+          Cada quadrado é um dia sustentado.
+        </p>
       </div>
 
-      {habits.length === 0 ? (
-        <p style={{ fontSize: 13, color: COLORS.muted2 }}>
-          Adicione hábitos de âncora ou bons hábitos na aba &quot;Hoje&quot; pra vê-los aqui como cards.
-        </p>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {habits.map((h) => {
-            const done = checked.has(h.id);
-            return (
-              <div
-                key={h.id}
-                style={{
-                  border: `1px solid ${COLORS.line}`,
-                  borderRadius: 12,
-                  overflow: "hidden",
-                  background: COLORS.panel,
-                }}
-              >
-                <div
-                  style={{
-                    height: 64,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 26,
-                    background: `linear-gradient(160deg, ${h.category === "ancora" ? "#2a2116" : "#17272a"}, ${COLORS.panel})`,
-                  }}
-                >
-                  {h.emoji || (h.category === "ancora" ? "⚓" : "✓")}
-                </div>
-                <div style={{ padding: "10px 12px 12px" }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{h.name}</div>
-                  <div style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6, color: COLORS.muted }}>
-                    <Checkbox state={done ? "done" : "empty"} />
-                    {done ? "Feito" : "Pendente"} · {dateLabel}
-                  </div>
-                </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-max">
+          {habits.map((h) => (
+            <div key={h.id} className="flex items-center gap-4 py-[3px]">
+              <div className="w-[150px] shrink-0 truncate text-[13px] opacity-70 sm:w-[190px]">
+                {h.name}
               </div>
-            );
-          })}
+              <div className="flex gap-[3px]">
+                {dates.map((date) => {
+                  const on = historyByDate.get(date)?.has(h.id) ?? false;
+                  const isToday = date === todayKey;
+                  return (
+                    <span
+                      key={date}
+                      title={date}
+                      className={`h-[13px] w-[13px] rounded-[3px] ${
+                        on
+                          ? h.category === "ancora"
+                            ? "bg-[var(--color-accent)]"
+                            : "bg-[var(--color-accent)]/60"
+                          : "bg-[var(--color-border)]"
+                      } ${isToday ? "ring-1 ring-[var(--color-accent)] ring-offset-1 ring-offset-[var(--color-background)]" : ""}`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
-      )}
-    </>
+      </div>
+    </section>
   );
 }
