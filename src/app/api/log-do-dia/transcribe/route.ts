@@ -28,7 +28,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Nenhum áudio enviado." }, { status: 400 });
   }
 
-  if (!ALLOWED_TYPES.has(file.type)) {
+  const baseMimeType = file.type.split(";")[0].trim();
+
+  if (!ALLOWED_TYPES.has(baseMimeType)) {
     return NextResponse.json(
       { error: `Formato de áudio não suportado: ${file.type}` },
       { status: 400 }
@@ -45,7 +47,7 @@ export async function POST(req: NextRequest) {
   try {
     const bytes = Buffer.from(await file.arrayBuffer());
     const base64 = bytes.toString("base64");
-    const text = await transcribeAudio(base64, file.type);
+    const text = await transcribeAudio(base64, baseMimeType);
     return NextResponse.json({ text });
   } catch {
     return NextResponse.json(
