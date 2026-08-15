@@ -6,8 +6,10 @@ export interface ChatMessage {
   text: string;
 }
 
+type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } };
+
 async function generateContent(
-  contents: { role: string; parts: { text: string }[] }[],
+  contents: { role: string; parts: ContentPart[] }[],
   systemInstruction?: string
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -65,6 +67,27 @@ export async function chatWithTutor(
   ];
 
   return generateContent(contents, systemInstruction);
+}
+
+export async function transcribeAudio(
+  base64Audio: string,
+  mimeType: string
+): Promise<string> {
+  const systemInstruction =
+    "Transcreva o áudio a seguir em português do Brasil, palavra por palavra. Responda APENAS com o texto transcrito, sem comentários, sem markdown, sem aspas ao redor.";
+
+  const contents = [
+    {
+      role: "user",
+      parts: [
+        { text: "Transcreva este áudio:" },
+        { inlineData: { mimeType, data: base64Audio } },
+      ],
+    },
+  ];
+
+  const raw = await generateContent(contents, systemInstruction);
+  return raw.trim();
 }
 
 export interface CourseProposal {
