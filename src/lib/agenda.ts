@@ -115,3 +115,13 @@ export async function getRecentDays(count: number): Promise<DayEntry[]> {
   const days = await readDays();
   return [...days].sort((a, b) => b.date.localeCompare(a.date)).slice(0, count);
 }
+
+export async function getDaysInRange(
+  from: string,
+  to: string
+): Promise<DayEntry[]> {
+  const days = await readDays();
+  return days
+    .filter((d) => d.date >= from && d.date <= to)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
