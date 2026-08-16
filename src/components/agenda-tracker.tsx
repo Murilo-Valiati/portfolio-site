@@ -161,6 +161,16 @@ export function AgendaTracker() {
     if (data.habit) setHabits((p) => [...p, data.habit]);
   }
 
+  async function renameHabit(id: string, name: string) {
+    setHabits((p) => p.map((h) => (h.id === id ? { ...h, name } : h)));
+
+    await fetch("/api/admin/agenda/habits", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name }),
+    });
+  }
+
   async function removeHabit(id: string) {
     setHabits((p) => p.filter((h) => h.id !== id));
     await fetch(`/api/admin/agenda/habits?id=${id}`, { method: "DELETE" });
@@ -196,6 +206,7 @@ export function AgendaTracker() {
           setDraft={(v) => setDrafts((p) => ({ ...p, ancora: v }))}
           onAdd={() => addHabit("ancora")}
           onToggle={toggle}
+          onRename={renameHabit}
           onRemove={removeHabit}
         />
 
@@ -208,6 +219,7 @@ export function AgendaTracker() {
             setDraft={(v) => setDrafts((p) => ({ ...p, bom: v }))}
             onAdd={() => addHabit("bom")}
             onToggle={toggle}
+            onRename={renameHabit}
             onRemove={removeHabit}
           />
           <HabitColumn
@@ -218,6 +230,7 @@ export function AgendaTracker() {
             setDraft={(v) => setDrafts((p) => ({ ...p, mau: v }))}
             onAdd={() => addHabit("mau")}
             onToggle={toggle}
+            onRename={renameHabit}
             onRemove={removeHabit}
           />
         </div>
@@ -394,20 +407,59 @@ function HabitRow({
   habit,
   on,
   onToggle,
+  onRename,
   onRemove,
   large,
 }: {
   habit: Habit;
   on: boolean;
   onToggle: (id: string) => void;
+  onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
   large?: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(habit.name);
+
+  function commit() {
+    const next = value.trim();
+    if (next && next !== habit.name) onRename(habit.id, next);
+    else setValue(habit.name);
+    setEditing(false);
+  }
+
+  function cancel() {
+    setValue(habit.name);
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-3">
+        <Mark category={habit.category} on={on} />
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") cancel();
+          }}
+          aria-label={`Editar nome de ${habit.name}`}
+          className={`${
+            large ? "text-[17px]" : "text-[14.5px]"
+          } min-w-0 flex-1 border-b border-[var(--color-accent)] bg-transparent py-1 leading-snug outline-none`}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="group flex items-center gap-3">
       <button
         onClick={() => onToggle(habit.id)}
-        className="flex items-center gap-3 rounded-md py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)]"
+        className="flex min-w-0 items-center gap-3 rounded-md py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)]"
         aria-pressed={on}
       >
         <Mark category={habit.category} on={on} />
@@ -420,13 +472,25 @@ function HabitRow({
         </span>
       </button>
 
-      <button
-        onClick={() => onRemove(habit.id)}
-        className="ml-auto font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-0 transition-opacity hover:underline focus-visible:opacity-60 group-hover:opacity-45"
-        aria-label={`Remover ${habit.name}`}
-      >
-        remover
-      </button>
+      <div className="ml-auto flex shrink-0 items-center gap-3">
+        <button
+          onClick={() => {
+            setValue(habit.name);
+            setEditing(true);
+          }}
+          className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-45 transition-opacity hover:underline hover:opacity-100 focus-visible:opacity-100"
+          aria-label={`Renomear ${habit.name}`}
+        >
+          editar
+        </button>
+        <button
+          onClick={() => onRemove(habit.id)}
+          className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-45 transition-opacity hover:underline hover:opacity-100 focus-visible:opacity-100"
+          aria-label={`Remover ${habit.name}`}
+        >
+          remover
+        </button>
+      </div>
     </div>
   );
 }
@@ -471,6 +535,7 @@ function AnchorSection({
   setDraft,
   onAdd,
   onToggle,
+  onRename,
   onRemove,
 }: {
   habits: Habit[];
@@ -479,6 +544,7 @@ function AnchorSection({
   setDraft: (v: string) => void;
   onAdd: () => void;
   onToggle: (id: string) => void;
+  onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
 }) {
   const copy = CATEGORY_COPY.ancora;
@@ -502,6 +568,7 @@ function AnchorSection({
               habit={h}
               on={checked.has(h.id)}
               onToggle={onToggle}
+              onRename={onRename}
               onRemove={onRemove}
               large
             />
@@ -527,6 +594,7 @@ function HabitColumn({
   setDraft,
   onAdd,
   onToggle,
+  onRename,
   onRemove,
 }: {
   category: HabitCategory;
@@ -536,6 +604,7 @@ function HabitColumn({
   setDraft: (v: string) => void;
   onAdd: () => void;
   onToggle: (id: string) => void;
+  onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
 }) {
   const copy = CATEGORY_COPY[category];
@@ -564,6 +633,7 @@ function HabitColumn({
               habit={h}
               on={checked.has(h.id)}
               onToggle={onToggle}
+              onRename={onRename}
               onRemove={onRemove}
             />
           ))}

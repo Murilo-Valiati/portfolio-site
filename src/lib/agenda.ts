@@ -67,6 +67,19 @@ export async function addHabit(
   return habit;
 }
 
+export async function renameHabit(
+  id: string,
+  name: string
+): Promise<Habit | null> {
+  const habits = await readHabits();
+  const habit = habits.find((h) => h.id === id);
+  if (!habit) return null;
+
+  habit.name = name;
+  await writeHabits(habits);
+  return habit;
+}
+
 export async function deleteHabit(id: string): Promise<void> {
   const habits = await readHabits();
   await writeHabits(habits.filter((h) => h.id !== id));

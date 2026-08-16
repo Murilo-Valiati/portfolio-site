@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addHabit, deleteHabit, getHabits, type HabitCategory } from "@/lib/agenda";
+import {
+  addHabit,
+  deleteHabit,
+  getHabits,
+  renameHabit,
+  type HabitCategory,
+} from "@/lib/agenda";
 
 const VALID_CATEGORIES: HabitCategory[] = ["ancora", "bom", "mau"];
 
@@ -19,6 +25,23 @@ export async function POST(req: NextRequest) {
   }
 
   const habit = await addHabit(name, category, emoji || "•");
+  return NextResponse.json({ habit });
+}
+
+export async function PATCH(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  const id = typeof body?.id === "string" ? body.id : "";
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+
+  if (!id || !name) {
+    return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
+  }
+
+  const habit = await renameHabit(id, name);
+  if (!habit) {
+    return NextResponse.json({ error: "Hábito não encontrado." }, { status: 404 });
+  }
+
   return NextResponse.json({ habit });
 }
 
