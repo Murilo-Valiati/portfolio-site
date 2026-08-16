@@ -238,6 +238,7 @@ export function AgendaTracker() {
           onToggle={toggle}
           onRename={renameHabit}
           onRemove={removeHabit}
+          canEdit={isToday}
         />
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -251,6 +252,7 @@ export function AgendaTracker() {
             onToggle={toggle}
             onRename={renameHabit}
             onRemove={removeHabit}
+            canEdit={isToday}
           />
           <HabitColumn
             category="mau"
@@ -262,6 +264,7 @@ export function AgendaTracker() {
             onToggle={toggle}
             onRename={renameHabit}
             onRemove={removeHabit}
+            canEdit={isToday}
           />
         </div>
 
@@ -342,13 +345,20 @@ function Header({
         </div>
       </div>
 
-      <div>
+      <div className="flex flex-col gap-3">
         <div className="h-[3px] w-full overflow-hidden rounded-full bg-[var(--color-border)]">
           <div
             className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-500 ease-out motion-reduce:transition-none"
             style={{ width: `${overallPct}%` }}
           />
         </div>
+        {!isToday && (
+          <p className="text-[12.5px] opacity-55">
+            Dia anterior: dá para marcar e desmarcar o que foi cumprido. Criar,
+            renomear ou excluir hábitos só em hoje — a lista de hábitos é a mesma
+            para todos os dias.
+          </p>
+        )}
       </div>
     </header>
   );
@@ -469,6 +479,7 @@ function HabitRow({
   onToggle,
   onRename,
   onRemove,
+  canEdit,
   large,
 }: {
   habit: Habit;
@@ -476,9 +487,11 @@ function HabitRow({
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
+  canEdit: boolean;
   large?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [value, setValue] = useState(habit.name);
 
   function commit() {
@@ -532,25 +545,50 @@ function HabitRow({
         </span>
       </button>
 
-      <div className="ml-auto flex shrink-0 items-center gap-3">
-        <button
-          onClick={() => {
-            setValue(habit.name);
-            setEditing(true);
-          }}
-          className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-45 transition-opacity hover:underline hover:opacity-100 focus-visible:opacity-100"
-          aria-label={`Renomear ${habit.name}`}
-        >
-          editar
-        </button>
-        <button
-          onClick={() => onRemove(habit.id)}
-          className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-45 transition-opacity hover:underline hover:opacity-100 focus-visible:opacity-100"
-          aria-label={`Remover ${habit.name}`}
-        >
-          remover
-        </button>
-      </div>
+      {canEdit && (
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          {confirmingRemove ? (
+            <>
+              <span className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-60">
+                excluir de todos os dias?
+              </span>
+              <button
+                onClick={() => onRemove(habit.id)}
+                className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider text-[var(--color-accent)] underline"
+                aria-label={`Confirmar exclusão de ${habit.name}`}
+              >
+                excluir
+              </button>
+              <button
+                onClick={() => setConfirmingRemove(false)}
+                className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-45 hover:opacity-100"
+              >
+                cancelar
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => {
+                  setValue(habit.name);
+                  setEditing(true);
+                }}
+                className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-45 transition-opacity hover:underline hover:opacity-100 focus-visible:opacity-100"
+                aria-label={`Renomear ${habit.name}`}
+              >
+                editar
+              </button>
+              <button
+                onClick={() => setConfirmingRemove(true)}
+                className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-45 transition-opacity hover:underline hover:opacity-100 focus-visible:opacity-100"
+                aria-label={`Remover ${habit.name}`}
+              >
+                remover
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -597,6 +635,7 @@ function AnchorSection({
   onToggle,
   onRename,
   onRemove,
+  canEdit,
 }: {
   habits: Habit[];
   checked: Set<string>;
@@ -606,6 +645,7 @@ function AnchorSection({
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
+  canEdit: boolean;
 }) {
   const copy = CATEGORY_COPY.ancora;
 
@@ -630,18 +670,21 @@ function AnchorSection({
               onToggle={onToggle}
               onRename={onRename}
               onRemove={onRemove}
+              canEdit={canEdit}
               large
             />
           ))}
         </div>
       )}
 
-      <AddHabit
-        value={draft}
-        onChange={setDraft}
-        onAdd={onAdd}
-        placeholder={copy.placeholder}
-      />
+      {canEdit && (
+        <AddHabit
+          value={draft}
+          onChange={setDraft}
+          onAdd={onAdd}
+          placeholder={copy.placeholder}
+        />
+      )}
     </section>
   );
 }
@@ -656,6 +699,7 @@ function HabitColumn({
   onToggle,
   onRename,
   onRemove,
+  canEdit,
 }: {
   category: HabitCategory;
   habits: Habit[];
@@ -666,6 +710,7 @@ function HabitColumn({
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
+  canEdit: boolean;
 }) {
   const copy = CATEGORY_COPY[category];
   const done = habits.filter((h) => checked.has(h.id)).length;
@@ -695,19 +740,22 @@ function HabitColumn({
               onToggle={onToggle}
               onRename={onRename}
               onRemove={onRemove}
+              canEdit={canEdit}
             />
           ))}
         </div>
       )}
 
-      <div className="mt-auto">
-        <AddHabit
-          value={draft}
-          onChange={setDraft}
-          onAdd={onAdd}
-          placeholder={copy.placeholder}
-        />
-      </div>
+      {canEdit && (
+        <div className="mt-auto">
+          <AddHabit
+            value={draft}
+            onChange={setDraft}
+            onAdd={onAdd}
+            placeholder={copy.placeholder}
+          />
+        </div>
+      )}
     </section>
   );
 }
@@ -816,7 +864,7 @@ function Calendar({
         </p>
       </div>
 
-      <div className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 sm:p-7">
+      <div className="w-full max-w-[360px] rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
         <div className="mb-5 flex items-center justify-between">
           <h3 className="font-[family-name:var(--font-display)] text-[19px] font-semibold capitalize">
             {MONTHS[month]} <span className="opacity-45">{year}</span>
@@ -869,7 +917,7 @@ function Calendar({
                       }
                     : undefined
                 }
-                className={`relative flex aspect-square items-center justify-center rounded-lg border font-[family-name:var(--font-mono)] text-[13px] transition-all ${
+                className={`relative flex aspect-square items-center justify-center rounded-md border font-[family-name:var(--font-mono)] text-[11.5px] transition-all ${
                   isSelected
                     ? "border-[var(--color-accent)] ring-1 ring-[var(--color-accent)]"
                     : "border-[var(--color-border)]"
