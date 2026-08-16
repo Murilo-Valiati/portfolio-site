@@ -8,6 +8,16 @@ export interface Habit {
   name: string;
   category: HabitCategory;
   emoji: string;
+  /**
+   * true  = repeats every day from `date` onward
+   * false = belongs only to the single day in `date`
+   *
+   * Legacy entries saved before this field existed have it undefined and are
+   * treated as recurring with no start date, i.e. visible on every day.
+   */
+  recurring?: boolean;
+  /** YYYY-MM-DD. Start day when recurring, the only day when not. */
+  date?: string;
 }
 
 export interface DayEntry {
@@ -58,13 +68,29 @@ export async function getHabits(): Promise<Habit[]> {
 export async function addHabit(
   name: string,
   category: HabitCategory,
-  emoji: string
+  emoji: string,
+  recurring: boolean,
+  date: string
 ): Promise<Habit> {
   const habits = await readHabits();
-  const habit: Habit = { id: crypto.randomUUID(), name, category, emoji };
+  const habit: Habit = {
+    id: crypto.randomUUID(),
+    name,
+    category,
+    emoji,
+    recurring,
+    date,
+  };
   habits.push(habit);
   await writeHabits(habits);
   return habit;
+}
+
+/** Whether an item should show up on a given day. */
+export function isVisibleOn(habit: Habit, date: string): boolean {
+  const recurring = habit.recurring !== false;
+  if (!recurring) return habit.date === date;
+  return !habit.date || date >= habit.date;
 }
 
 export async function renameHabit(

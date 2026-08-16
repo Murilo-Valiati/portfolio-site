@@ -58,6 +58,16 @@ function parseDateKey(key: string): Date {
   return new Date(y, m - 1, d);
 }
 
+/**
+ * Whether an item shows up on a given day. Kept here rather than imported from
+ * lib/agenda so this client bundle doesn't pull in that module's fs usage.
+ * Legacy items (no `recurring`/`date`) are treated as recurring and always visible.
+ */
+function isVisibleOn(habit: Habit, date: string): boolean {
+  if (habit.recurring === false) return habit.date === date;
+  return !habit.date || date >= habit.date;
+}
+
 function lastNDates(n: number): string[] {
   const out: string[] = [];
   const cursor = new Date();
@@ -121,17 +131,26 @@ export function AgendaTracker() {
     [dayMap, selectedDate]
   );
 
+  const visibleHabits = useMemo(
+    () => habits.filter((h) => isVisibleOn(h, selectedDate)),
+    [habits, selectedDate]
+  );
+
   const byCategory = useMemo(() => {
     const g: Record<HabitCategory, Habit[]> = { ancora: [], bom: [], mau: [] };
-    for (const h of habits) g[h.category].push(h);
+    for (const h of visibleHabits) g[h.category].push(h);
     return g;
-  }, [habits]);
+  }, [visibleHabits]);
 
-  const doneCount = habits.filter((h) => checked.has(h.id)).length;
-  const overallPct = habits.length ? Math.round((doneCount / habits.length) * 100) : 0;
+  const doneCount = visibleHabits.filter((h) => checked.has(h.id)).length;
+  const overallPct = visibleHabits.length
+    ? Math.round((doneCount / visibleHabits.length) * 100)
+    : 0;
 
   const streak = useMemo(() => {
-    const anchors = byCategory.ancora;
+    const anchors = habits.filter(
+      (h) => h.category === "ancora" && h.recurring !== false
+    );
     if (anchors.length === 0) return 0;
 
     let count = 0;
@@ -151,7 +170,7 @@ export function AgendaTracker() {
       cursor.setDate(cursor.getDate() - 1);
     }
     return count;
-  }, [dayMap, byCategory.ancora, todayKey]);
+  }, [dayMap, habits, todayKey]);
 
   function goToToday() {
     const d = new Date();
@@ -174,7 +193,7 @@ export function AgendaTracker() {
     });
   }
 
-  async function addHabit(category: HabitCategory) {
+  async function addHabit(category: HabitCategory, recurring: boolean) {
     const name = drafts[category].trim();
     if (!name) return;
     setDrafts((p) => ({ ...p, [category]: "" }));
@@ -182,7 +201,7 @@ export function AgendaTracker() {
     const res = await fetch("/api/admin/agenda/habits", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, category }),
+      body: JSON.stringify({ name, category, recurring, date: selectedDate }),
     });
     const data = await res.json();
     if (data.habit) setHabits((p) => [...p, data.habit]);
@@ -225,7 +244,7 @@ export function AgendaTracker() {
           onBackToToday={goToToday}
           streak={streak}
           doneCount={doneCount}
-          total={habits.length}
+          total={visibleHabits.length}
           overallPct={overallPct}
         />
 
@@ -234,11 +253,11 @@ export function AgendaTracker() {
           checked={checked}
           draft={drafts.ancora}
           setDraft={(v) => setDrafts((p) => ({ ...p, ancora: v }))}
-          onAdd={() => addHabit("ancora")}
+          onAdd={(recurring: boolean) => addHabit("ancora", recurring)}
           onToggle={toggle}
           onRename={renameHabit}
           onRemove={removeHabit}
-          canEdit={isToday}
+          canEdit={true}
         />
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -248,11 +267,11 @@ export function AgendaTracker() {
             checked={checked}
             draft={drafts.bom}
             setDraft={(v) => setDrafts((p) => ({ ...p, bom: v }))}
-            onAdd={() => addHabit("bom")}
+            onAdd={(recurring: boolean) => addHabit("bom", recurring)}
             onToggle={toggle}
             onRename={renameHabit}
             onRemove={removeHabit}
-            canEdit={isToday}
+            canEdit={true}
           />
           <HabitColumn
             category="mau"
@@ -260,15 +279,19 @@ export function AgendaTracker() {
             checked={checked}
             draft={drafts.mau}
             setDraft={(v) => setDrafts((p) => ({ ...p, mau: v }))}
-            onAdd={() => addHabit("mau")}
+            onAdd={(recurring: boolean) => addHabit("mau", recurring)}
             onToggle={toggle}
             onRename={renameHabit}
             onRemove={removeHabit}
-            canEdit={isToday}
+            canEdit={true}
           />
         </div>
 
-        <Ledger habits={habits} historyByDate={dayMap} todayKey={todayKey} />
+        <Ledger
+          habits={habits.filter((h) => h.recurring !== false)}
+          historyByDate={dayMap}
+          todayKey={todayKey}
+        />
 
         <Calendar
           viewMonth={viewMonth}
@@ -354,9 +377,9 @@ function Header({
         </div>
         {!isToday && (
           <p className="text-[12.5px] opacity-55">
-            Dia anterior: dá para marcar e desmarcar o que foi cumprido. Criar,
-            renomear ou excluir hábitos só em hoje — a lista de hábitos é a mesma
-            para todos os dias.
+            Você está em um dia anterior. O que adicionar aqui como
+            &quot;só neste dia&quot; fica apenas nele; o que for
+            &quot;todo dia&quot; passa a valer deste dia em diante.
           </p>
         )}
       </div>
@@ -543,6 +566,11 @@ function HabitRow({
         >
           {habit.name}
         </span>
+        {habit.recurring === false && (
+          <span className="shrink-0 rounded-full border border-[var(--color-border)] px-2 py-0.5 font-[family-name:var(--font-mono)] text-[9.5px] uppercase tracking-wider opacity-50">
+            só neste dia
+          </span>
+        )}
       </button>
 
       {canEdit && (
@@ -550,7 +578,9 @@ function HabitRow({
           {confirmingRemove ? (
             <>
               <span className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-60">
-                excluir de todos os dias?
+                {habit.recurring === false
+                  ? "excluir esta tarefa?"
+                  : "excluir de todos os dias?"}
               </span>
               <button
                 onClick={() => onRemove(habit.id)}
@@ -601,27 +631,39 @@ function AddHabit({
 }: {
   value: string;
   onChange: (v: string) => void;
-  onAdd: () => void;
+  onAdd: (recurring: boolean) => void;
   placeholder: string;
 }) {
+  const btn =
+    "font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] transition-opacity hover:underline disabled:opacity-25 disabled:hover:no-underline";
+
   return (
-    <div className="flex items-center gap-2 border-t border-[var(--color-border)] pt-3">
+    <div className="flex flex-col gap-2 border-t border-[var(--color-border)] pt-3">
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") onAdd();
+          if (e.key === "Enter") onAdd(true);
         }}
         placeholder={placeholder}
-        className="min-w-0 flex-1 bg-transparent py-1 text-[14px] outline-none placeholder:opacity-40"
+        className="min-w-0 bg-transparent py-1 text-[14px] outline-none placeholder:opacity-40"
       />
-      <button
-        onClick={onAdd}
-        disabled={!value.trim()}
-        className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--color-accent)] transition-opacity hover:underline disabled:opacity-30 disabled:hover:no-underline"
-      >
-        adicionar
-      </button>
+      <div className="flex flex-wrap items-center gap-4">
+        <button
+          onClick={() => onAdd(true)}
+          disabled={!value.trim()}
+          className={`${btn} text-[var(--color-accent)]`}
+        >
+          + todo dia
+        </button>
+        <button
+          onClick={() => onAdd(false)}
+          disabled={!value.trim()}
+          className={`${btn} opacity-60 hover:opacity-100`}
+        >
+          + só neste dia
+        </button>
+      </div>
     </div>
   );
 }
@@ -641,7 +683,7 @@ function AnchorSection({
   checked: Set<string>;
   draft: string;
   setDraft: (v: string) => void;
-  onAdd: () => void;
+  onAdd: (recurring: boolean) => void;
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
@@ -706,7 +748,7 @@ function HabitColumn({
   checked: Set<string>;
   draft: string;
   setDraft: (v: string) => void;
-  onAdd: () => void;
+  onAdd: (recurring: boolean) => void;
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;

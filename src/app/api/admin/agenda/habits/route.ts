@@ -8,6 +8,7 @@ import {
 } from "@/lib/agenda";
 
 const VALID_CATEGORIES: HabitCategory[] = ["ancora", "bom", "mau"];
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function GET() {
   const habits = await getHabits();
@@ -19,12 +20,14 @@ export async function POST(req: NextRequest) {
   const name = typeof body?.name === "string" ? body.name.trim() : "";
   const category = body?.category as HabitCategory;
   const emoji = typeof body?.emoji === "string" ? body.emoji.trim() : "";
+  const recurring = body?.recurring !== false;
+  const date = typeof body?.date === "string" ? body.date : "";
 
-  if (!name || !VALID_CATEGORIES.includes(category)) {
+  if (!name || !VALID_CATEGORIES.includes(category) || !DATE_REGEX.test(date)) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 
-  const habit = await addHabit(name, category, emoji || "•");
+  const habit = await addHabit(name, category, emoji || "•", recurring, date);
   return NextResponse.json({ habit });
 }
 
