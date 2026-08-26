@@ -30,6 +30,12 @@ const blocks = [
     description:
       "Rastreador de hábitos — hábito âncora, bons e maus hábitos, progresso diário.",
   },
+  {
+    href: "/admin/notas",
+    title: "Notas",
+    description:
+      "Compromissos com hora marcada — a automação lê e cria os eventos no calendário.",
+  },
 ];
 
 export default function AdminHubPage() {

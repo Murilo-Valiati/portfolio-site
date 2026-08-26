@@ -1,0 +1,53 @@
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/session";
+import { checkNotesKey } from "@/lib/notes-key";
+import { addNote, getNotes, type NoteStatus } from "@/lib/notes";
+
+const VALID_STATUS: NoteStatus[] = ["pendente", "processado"];
+
+async function hasSession(): Promise<boolean> {
+  const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+  return token ? await verifySessionToken(token) : false;
+}
+
+/**
+ * Read notes. Authorized either by the admin session (so the panel can list
+ * them) or by the shared key (so the external automation can pull them without
+ * a browser session).
+ */
+export async function GET(req: NextRequest) {
+  const statusParam = req.nextUrl.searchParams.get("status");
+
+  if (statusParam && !VALID_STATUS.includes(statusParam as NoteStatus)) {
+    return NextResponse.json(
+      { error: 'status deve ser "pendente" ou "processado".' },
+      { status: 400 }
+    );
+  }
+
+  if (!(await hasSession())) {
+    const keyError = checkNotesKey(req);
+    if (keyError) return keyError;
+  }
+
+  const notes = await getNotes((statusParam as NoteStatus) || undefined);
+  return NextResponse.json({ notes });
+}
+
+/** Create a note. Panel only — the automation never writes new notes. */
+export async function POST(req: NextRequest) {
+  if (!(await hasSession())) {
+    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  }
+
+  const body = await req.json().catch(() => null);
+  const text = typeof body?.text === "string" ? body.text.trim() : "";
+
+  if (!text) {
+    return NextResponse.json({ error: "Texto obrigatório." }, { status: 400 });
+  }
+
+  const note = await addNote(text);
+  return NextResponse.json({ note });
+}
