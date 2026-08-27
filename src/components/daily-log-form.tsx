@@ -3,16 +3,6 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  fontFamily: "inherit",
-  fontSize: 14,
-  padding: "8px 10px",
-  border: "1px solid #ccc",
-  borderRadius: 6,
-  boxSizing: "border-box",
-};
-
 const TAG_REGEX = /,?\s*tag[s]?\s+([a-zà-úA-ZÀ-Ú0-9-]+)\.?/gi;
 const SUBMIT_REGEX = /,?\s*registrar\s+(o\s+)?log\.?/gi;
 const SUBMIT_TEST_REGEX = /registrar\s+(o\s+)?log\.?/i;
@@ -162,56 +152,66 @@ export function DailyLogForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-3 rounded-[14px] border border-[var(--color-accent)]/35 bg-[var(--color-surface)] p-6 sm:p-7"
+    >
+      <label
+        htmlFor="registro"
+        className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-[0.18em] opacity-45"
+      >
+        Novo registro
+      </label>
+
       <textarea
+        id="registro"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Como foi o dia? Treino, estudo, alimentação, sono, humor, tela..."
-        rows={5}
-        style={{ ...inputStyle, resize: "vertical" }}
+        placeholder="Como foi o dia?"
+        rows={4}
+        className="w-full resize-y bg-transparent text-[15px] leading-relaxed outline-none placeholder:opacity-35"
       />
+
       <input
         type="text"
         value={tagsInput}
         onChange={(e) => setTagsInput(e.target.value)}
-        placeholder="Tags separadas por vírgula (ex: treino, sem-acucar, bom-sono)"
-        style={inputStyle}
+        placeholder="tags separadas por vírgula — treino, sem-acucar, bom-sono"
+        className="w-full border-t border-[var(--color-border)] bg-transparent pt-3 text-[13.5px] outline-none placeholder:opacity-35"
       />
-      {error && <p style={{ fontSize: 13, color: "#c00", margin: 0 }}>{error}</p>}
-      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <button
-          type="submit"
-          disabled={saving || !text.trim()}
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            padding: "8px 16px",
-            border: "none",
-            borderRadius: 6,
-            background: saving ? "#999" : "#111",
-            color: "#fff",
-            cursor: saving ? "default" : "pointer",
-          }}
-        >
-          {saving ? "Salvando..." : "Registrar"}
-        </button>
-        <button
-          type="button"
-          onClick={handleRecordClick}
-          disabled={transcribing}
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            padding: "8px 16px",
-            border: "1px solid #ccc",
-            borderRadius: 6,
-            background: recording ? "#c00" : "#fff",
-            color: recording ? "#fff" : "#111",
-            cursor: transcribing ? "default" : "pointer",
-          }}
-        >
-          {recording ? "⏹ Parar" : transcribing ? "Transcrevendo..." : "🎙 Gravar áudio"}
-        </button>
+
+      {error && <p className="text-[13px] text-red-400">{error}</p>}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
+        <span className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-35">
+          {recording
+            ? "gravando… diga “tag treino” ou “registrar log”"
+            : transcribing
+              ? "transcrevendo o áudio…"
+              : "ditando, “tag x” vira tag"}
+        </span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleRecordClick}
+            disabled={transcribing}
+            aria-label={recording ? "Parar gravação" : "Ditar registro por áudio"}
+            className={`rounded-md border px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] transition-colors disabled:opacity-30 ${
+              recording
+                ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-background)]"
+                : "border-[var(--color-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+            }`}
+          >
+            {recording ? "■ parar" : transcribing ? "…" : "● ditar"}
+          </button>
+          <button
+            type="submit"
+            disabled={saving || !text.trim()}
+            className="rounded-md bg-[var(--color-accent)] px-4 py-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--color-background)] transition-opacity disabled:opacity-25"
+          >
+            {saving ? "salvando…" : "registrar"}
+          </button>
+        </div>
       </div>
     </form>
   );
