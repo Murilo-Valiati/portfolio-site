@@ -59,10 +59,26 @@ export function NotesPanel() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/notas")
-      .then((r) => r.json())
-      .then((d) => setNotes(d.notes || []))
-      .finally(() => setLoading(false));
+    function load() {
+      return fetch("/api/notas", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => setNotes(d.notes || []))
+        .finally(() => setLoading(false));
+    }
+
+    load();
+
+    // A página costuma ficar aberta no celular. Sem isto, ela mostraria o
+    // estado de quando foi aberta, mesmo depois da automação mexer na fila.
+    function onFocus() {
+      if (document.visibilityState === "visible") load();
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, []);
 
   const visible = useMemo(

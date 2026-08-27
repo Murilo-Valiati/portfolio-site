@@ -4,6 +4,11 @@ import crypto from "crypto";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/session";
 import { getAllEntries, addEntry } from "@/lib/daily-log";
 
+/** Lido por automação externa: nunca deve vir de cache. */
+export const dynamic = "force-dynamic";
+
+const NO_STORE = { "Cache-Control": "no-store, max-age=0" };
+
 function timingSafeEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
@@ -28,7 +33,7 @@ export async function GET(req: NextRequest) {
   }
 
   const entries = await getAllEntries();
-  return NextResponse.json({ entries });
+  return NextResponse.json({ entries }, { headers: NO_STORE });
 }
 
 export async function POST(req: NextRequest) {

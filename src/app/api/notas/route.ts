@@ -6,6 +6,16 @@ import { addNote, getNotes, type NoteStatus } from "@/lib/notes";
 
 const VALID_STATUS: NoteStatus[] = ["pendente", "processado"];
 
+/**
+ * A fila é lida por automação externa de hora em hora e precisa refletir o
+ * estado do disco a cada chamada. O Next 16 já não cacheia GET em route
+ * handlers, mas sem Cache-Control explícito qualquer intermediário ou cliente
+ * HTTP pode aplicar cache heurístico. Deixamos os dois travados.
+ */
+export const dynamic = "force-dynamic";
+
+const NO_STORE = { "Cache-Control": "no-store, max-age=0" };
+
 async function hasSession(): Promise<boolean> {
   const token = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   return token ? await verifySessionToken(token) : false;
@@ -32,7 +42,7 @@ export async function GET(req: NextRequest) {
   }
 
   const notes = await getNotes((statusParam as NoteStatus) || undefined);
-  return NextResponse.json({ notes });
+  return NextResponse.json({ notes }, { headers: NO_STORE });
 }
 
 /**
