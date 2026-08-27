@@ -48,12 +48,14 @@ export default async function Home() {
 
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-24 px-4 pt-16 pb-24 sm:gap-28 sm:px-7 sm:pt-[72px]">
         <ScrollReveal id="sobre" className="flex flex-col items-start gap-7 pt-2">
-          <div className="avatar-ring flex h-[88px] w-[88px] items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] font-[family-name:var(--font-display)] text-[22px] font-semibold text-[var(--rich-black)]">
+          <div className="avatar-ring flex h-[132px] w-[132px] items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] font-[family-name:var(--font-display)] text-[32px] font-semibold text-[var(--rich-black)] sm:h-[156px] sm:w-[156px] sm:text-[38px]">
             {profile.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={profile.avatarUrl}
                 alt={profile.name}
+                width={156}
+                height={156}
                 className="h-full w-full object-cover"
               />
             ) : (
