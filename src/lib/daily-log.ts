@@ -1,5 +1,5 @@
-import { promises as fs } from "fs";
 import path from "path";
+import { readJson, withLock, writeJsonAtomic } from "@/lib/json-store";
 
 export interface DailyLogEntry {
   id: string;
@@ -11,22 +11,12 @@ export interface DailyLogEntry {
 const DATA_DIR = process.env.CONTENT_DATA_DIR || path.join(process.cwd(), ".data");
 const LOG_FILE = path.join(DATA_DIR, "daily-log.json");
 
-async function ensureDataDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
-
 async function readEntries(): Promise<DailyLogEntry[]> {
-  try {
-    const raw = await fs.readFile(LOG_FILE, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
+  return readJson<DailyLogEntry[]>(LOG_FILE, []);
 }
 
 async function writeEntries(entries: DailyLogEntry[]): Promise<void> {
-  await ensureDataDir();
-  await fs.writeFile(LOG_FILE, JSON.stringify(entries, null, 2));
+  await writeJsonAtomic(LOG_FILE, entries);
 }
 
 export async function getAllEntries(): Promise<DailyLogEntry[]> {
@@ -38,6 +28,7 @@ export async function addEntry(
   text: string,
   tags: string[]
 ): Promise<DailyLogEntry> {
+  return withLock(LOG_FILE, async () => {
   const entries = await readEntries();
   const entry: DailyLogEntry = {
     id: crypto.randomUUID(),
@@ -48,4 +39,5 @@ export async function addEntry(
   entries.push(entry);
   await writeEntries(entries);
   return entry;
+  });
 }
