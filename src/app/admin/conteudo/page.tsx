@@ -21,6 +21,7 @@ export default function AdminConteudoPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [avatarPendente, setAvatarPendente] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function AdminConteudoPage() {
     });
     setSaving(false);
     setContent(contentToSave);
+    if (res.ok) setAvatarPendente(false);
     setMessage(res.ok ? "Alterações salvas com sucesso." : "Erro ao salvar.");
   }
 
@@ -74,7 +76,11 @@ export default function AdminConteudoPage() {
     const data = await res.json();
     setUploading(false);
     if (res.ok && content) {
+      // O arquivo já está no servidor, mas o endereço dele só vai para o
+      // content.json quando o usuário salvar. Sem este aviso o preview troca
+      // na hora e passa a impressão de que já foi publicado.
       setContent({ ...content, profile: { ...content.profile, avatarUrl: data.url } });
+      setAvatarPendente(true);
     } else {
       setMessage(data.error || "Erro ao enviar imagem.");
     }
@@ -144,6 +150,13 @@ export default function AdminConteudoPage() {
               {uploading && <span className="text-xs opacity-70">Enviando…</span>}
             </label>
           </div>
+
+          {avatarPendente && (
+            <p className="rounded-md border border-[var(--color-accent)] bg-[color-mix(in_srgb,var(--color-accent)_10%,transparent)] px-3 py-2 text-[13px]">
+              Foto enviada, mas ainda <strong>não aplicada no site</strong>. Clique
+              em “Salvar alterações”, no fim da página, para publicá-la.
+            </p>
+          )}
 
           <label className={labelClass}>
             Nome
