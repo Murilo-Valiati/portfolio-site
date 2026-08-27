@@ -9,17 +9,20 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 /**
- * Checks the shared secret used by the external automation (Claude Cowork).
- * Accepts it as `?key=` or the `x-notes-key` header.
+ * Two separate secrets, on purpose:
  *
- * Returns null when the request is authorized, or the response to send back
- * when it is not.
+ * - NOTES_KEY       lê a fila e marca notas como processadas (Claude Cowork).
+ * - NOTES_WRITE_KEY apenas cria notas (atalho do iPhone).
+ *
+ * Se uma vazar, ela não faz o que a outra faz.
  */
-export function checkNotesKey(req: NextRequest): NextResponse | null {
-  const expected = process.env.NOTES_KEY;
+type KeyName = "NOTES_KEY" | "NOTES_WRITE_KEY";
+
+function checkKey(req: NextRequest, name: KeyName): NextResponse | null {
+  const expected = process.env[name];
   if (!expected) {
     return NextResponse.json(
-      { error: "NOTES_KEY não configurada no servidor." },
+      { error: `${name} não configurada no servidor.` },
       { status: 500 }
     );
   }
@@ -32,4 +35,14 @@ export function checkNotesKey(req: NextRequest): NextResponse | null {
   }
 
   return null;
+}
+
+/** Leitura da fila e marcação de status. Returns null when authorized. */
+export function checkNotesKey(req: NextRequest): NextResponse | null {
+  return checkKey(req, "NOTES_KEY");
+}
+
+/** Criação de notas. Returns null when authorized. */
+export function checkNotesWriteKey(req: NextRequest): NextResponse | null {
+  return checkKey(req, "NOTES_WRITE_KEY");
 }

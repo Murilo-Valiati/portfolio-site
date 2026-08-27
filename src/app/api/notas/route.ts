@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/session";
-import { checkNotesKey } from "@/lib/notes-key";
+import { checkNotesKey, checkNotesWriteKey } from "@/lib/notes-key";
 import { addNote, getNotes, type NoteStatus } from "@/lib/notes";
 
 const VALID_STATUS: NoteStatus[] = ["pendente", "processado"];
@@ -35,14 +35,32 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ notes });
 }
 
-/** Create a note. Panel only — the automation never writes new notes. */
+/**
+ * Create a note. Authorized by the admin session (panel) or by the write key
+ * (the iPhone shortcut). The read key deliberately does not work here.
+ *
+ * Accepts JSON `{ text }` or a plain-text body, since Shortcuts sends text more
+ * easily than JSON.
+ */
 export async function POST(req: NextRequest) {
   if (!(await hasSession())) {
-    return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    const keyError = checkNotesWriteKey(req);
+    if (keyError) return keyError;
   }
 
-  const body = await req.json().catch(() => null);
-  const text = typeof body?.text === "string" ? body.text.trim() : "";
+  const raw = await req.text();
+  let text = "";
+
+  if (raw.trimStart().startsWith("{")) {
+    try {
+      const body = JSON.parse(raw);
+      text = typeof body?.text === "string" ? body.text.trim() : "";
+    } catch {
+      text = "";
+    }
+  } else {
+    text = raw.trim();
+  }
 
   if (!text) {
     return NextResponse.json({ error: "Texto obrigatório." }, { status: 400 });
