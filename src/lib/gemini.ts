@@ -69,12 +69,31 @@ export async function chatWithTutor(
   return generateContent(contents, systemInstruction);
 }
 
+/**
+ * "livre" transcreve palavra por palavra (diário).
+ * "compromisso" normaliza horários e dias para facilitar a leitura posterior
+ * por uma automação (notas de agenda).
+ */
+export type TranscriptionMode = "livre" | "compromisso";
+
+const TRANSCRIPTION_PROMPTS: Record<TranscriptionMode, string> = {
+  livre:
+    "Transcreva o áudio a seguir em português do Brasil, palavra por palavra. Responda APENAS com o texto transcrito, sem comentários, sem markdown, sem aspas ao redor.",
+  compromisso: [
+    "Transcreva o áudio a seguir em português do Brasil. É uma anotação rápida sobre compromissos: reuniões, cursos, cultos, treinos, cancelamentos ou mudanças de horário.",
+    "Escreva horários em formato numérico curto: 'quinze horas' vira '15h', 'oito e meia da noite' vira '20h30', 'meio-dia' vira '12h'.",
+    "Mantenha os dias da semana e nomes de pessoas exatamente como falados.",
+    "Não invente informação que não está no áudio e não tente completar o que ficou implícito.",
+    "Responda APENAS com o texto transcrito, sem comentários, sem markdown, sem aspas ao redor.",
+  ].join(" "),
+};
+
 export async function transcribeAudio(
   base64Audio: string,
-  mimeType: string
+  mimeType: string,
+  mode: TranscriptionMode = "livre"
 ): Promise<string> {
-  const systemInstruction =
-    "Transcreva o áudio a seguir em português do Brasil, palavra por palavra. Responda APENAS com o texto transcrito, sem comentários, sem markdown, sem aspas ao redor.";
+  const systemInstruction = TRANSCRIPTION_PROMPTS[mode];
 
   const contents = [
     {

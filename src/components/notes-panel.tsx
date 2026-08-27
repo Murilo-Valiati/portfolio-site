@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Note, NoteStatus } from "@/lib/notes";
 
 type Filter = "todas" | NoteStatus;
@@ -282,6 +282,65 @@ function Composer({
   saving: boolean;
   error: string | null;
 }) {
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const textRef = useRef(text);
+  textRef.current = text;
+
+  async function handleRecord() {
+    if (recording) {
+      recorderRef.current?.stop();
+      return;
+    }
+
+    setMicError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        setTranscribing(true);
+
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
+        const form = new FormData();
+        form.append("file", blob, "nota.webm");
+
+        const res = await fetch("/api/admin/transcribe?mode=compromisso", {
+          method: "POST",
+          body: form,
+        });
+
+        setTranscribing(false);
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setMicError(data.error || "Erro ao transcrever o áudio.");
+          return;
+        }
+
+        const data = await res.json();
+        const prev = textRef.current.trim();
+        setText(prev ? `${prev}\n${data.text}` : data.text);
+      };
+
+      recorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch {
+      setMicError("Não foi possível acessar o microfone.");
+    }
+  }
+
   return (
     <section className="flex flex-col gap-3 rounded-[14px] border border-[var(--color-accent)]/35 bg-[var(--color-surface)] p-6 sm:p-7">
       <label
@@ -301,18 +360,38 @@ function Composer({
         placeholder="reunião quinta 15h com fulano&#10;cancelar treino de hoje&#10;mudar culto de quarta pra 20h"
         className="w-full resize-y bg-transparent text-[15px] leading-relaxed outline-none placeholder:opacity-35"
       />
-      {error && <p className="text-[13px] text-red-400">{error}</p>}
+      {(error || micError) && (
+        <p className="text-[13px] text-red-400">{error || micError}</p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-3">
         <span className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-35">
-          ctrl + enter salva
+          {recording
+            ? "gravando… toque em parar quando terminar"
+            : transcribing
+              ? "transcrevendo o áudio…"
+              : "ctrl + enter salva"}
         </span>
-        <button
-          onClick={onSave}
-          disabled={!text.trim() || saving}
-          className="rounded-md bg-[var(--color-accent)] px-4 py-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--color-background)] transition-opacity disabled:opacity-25"
-        >
-          {saving ? "salvando…" : "pôr na fila"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleRecord}
+            disabled={transcribing}
+            aria-label={recording ? "Parar gravação" : "Ditar nota por áudio"}
+            className={`rounded-md border px-3 py-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] transition-colors disabled:opacity-30 ${
+              recording
+                ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-background)]"
+                : "border-[var(--color-border)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+            }`}
+          >
+            {recording ? "■ parar" : transcribing ? "…" : "● ditar"}
+          </button>
+          <button
+            onClick={onSave}
+            disabled={!text.trim() || saving}
+            className="rounded-md bg-[var(--color-accent)] px-4 py-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--color-background)] transition-opacity disabled:opacity-25"
+          >
+            {saving ? "salvando…" : "pôr na fila"}
+          </button>
+        </div>
       </div>
     </section>
   );
