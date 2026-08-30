@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SiteContent } from "@/lib/content";
 
@@ -23,6 +23,7 @@ export default function AdminConteudoPage() {
   const [uploading, setUploading] = useState(false);
   const [avatarPendente, setAvatarPendente] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/admin/content")
@@ -122,33 +123,68 @@ export default function AdminConteudoPage() {
         <section className={cardClass}>
           <h2 className="text-lg font-semibold">Perfil</h2>
 
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-lg font-semibold text-[var(--rich-black)]">
-              {content.profile.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={content.profile.avatarUrl}
-                  alt="Foto de perfil"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                content.profile.avatarInitials
-              )}
-            </div>
-            <label className="flex flex-col gap-1 text-sm">
-              Foto de perfil
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
+          <div className="flex items-center gap-5">
+            {/* Foto clicável com selo de câmera, como rede social */}
+            <button
+              type="button"
+              onClick={() => fotoInputRef.current?.click()}
+              disabled={uploading}
+              aria-label="Trocar foto de perfil"
+              className="group relative shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)]"
+            >
+              <span className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-[var(--color-accent)] text-2xl font-semibold text-[var(--rich-black)]">
+                {content.profile.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={content.profile.avatarUrl}
+                    alt="Foto de perfil"
+                    className="h-full w-full object-cover transition-opacity group-hover:opacity-75"
+                  />
+                ) : (
+                  content.profile.avatarInitials
+                )}
+              </span>
+              <span className="absolute -right-0.5 -bottom-0.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--color-surface)] bg-[var(--color-accent)] text-[var(--rich-black)] transition-transform group-hover:scale-110">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+              </span>
+            </button>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium">Foto de perfil</span>
+              <button
+                type="button"
+                onClick={() => fotoInputRef.current?.click()}
                 disabled={uploading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleAvatarUpload(file);
-                }}
-                className="text-xs"
-              />
-              {uploading && <span className="text-xs opacity-70">Enviando…</span>}
-            </label>
+                className="self-start rounded-full border border-[var(--color-accent)] px-4 py-1.5 text-sm text-[var(--color-accent)] transition hover:bg-[var(--color-accent)] hover:text-[var(--rich-black)] disabled:opacity-50"
+              >
+                {uploading ? "Enviando…" : "Trocar foto"}
+              </button>
+              <span className="text-xs opacity-55">JPG, PNG, WEBP ou GIF · até 5MB</span>
+            </div>
+
+            <input
+              ref={fotoInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleAvatarUpload(file);
+                e.target.value = "";
+              }}
+            />
           </div>
 
           {avatarPendente && (
