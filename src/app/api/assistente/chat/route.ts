@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { chatWithTutor, chatWithTutorStream, mapearErroGemini } from "@/lib/gemini";
+import { claudeConfigurado, tutorClaude } from "@/lib/claude-cli";
 import {
   getChatHistory,
   appendChatExchange,
@@ -45,6 +46,18 @@ export async function POST(req: NextRequest) {
   }
 
   const historico = (await getChatHistory(threadKey)).slice(-MAX_HISTORICO_PARA_IA);
+
+  // Motor preferido do Assistente: a assinatura do Claude (decisão do dono).
+  // Qualquer falha — limite da assinatura, CLI fora — cai pro Gemini abaixo.
+  if (claudeConfigurado()) {
+    try {
+      const reply = await tutorClaude(historico, message, courseContext);
+      await appendChatExchange(threadKey, message, reply);
+      return NextResponse.json({ reply, motor: "claude" });
+    } catch (err) {
+      console.warn("[tutor] Claude (assinatura) falhou, caindo pro Gemini:", err);
+    }
+  }
 
   try {
     const gerador = chatWithTutorStream(historico, message, courseContext);

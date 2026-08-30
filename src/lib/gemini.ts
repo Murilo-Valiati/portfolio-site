@@ -74,7 +74,7 @@ export function mapearErroGemini(err: unknown): { status: number; mensagem: stri
   };
 }
 
-function tutorSystemInstruction(courseContext?: string): string {
+export function tutorSystemInstruction(courseContext?: string): string {
   return [
     "Você é um tutor especialista, com profundidade real nos assuntos que ensina (lógica de programação, estruturas de dados e fundamentos de IA), não um chatbot genérico de respostas superficiais.",
     "O aluno já tem uma base sólida em lógica de programação e estruturas de dados — não repita conceitos básicos dessa área sem necessidade. Em compensação, trate tecnologias web e infraestrutura como território mais novo pra ele: conecte conceitos novos a analogias com lógica/algoritmos que ele já domina sempre que ajudar a fixar o assunto.",

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addCustomCourse, isCustomCourseId, removeCustomCourse } from "@/lib/lms";
+import {
+  addCustomCourse,
+  isCustomCourseId,
+  ocultarCursoPadrao,
+  removeCustomCourse,
+} from "@/lib/lms";
 import { deleteChatThreadsForCourse } from "@/lib/chat-history";
 
 export async function POST(req: NextRequest) {
@@ -28,11 +33,11 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 
+  // Curso padrão não é apagado (o catálogo vive no código): é OCULTADO.
+  // Progresso e conversas ficam guardados; restauração na página do Assistente.
   if (!isCustomCourseId(courseId)) {
-    return NextResponse.json(
-      { error: "Cursos padrão do site não podem ser removidos." },
-      { status: 400 }
-    );
+    await ocultarCursoPadrao(courseId);
+    return NextResponse.json({ ok: true, oculto: true });
   }
 
   await removeCustomCourse(courseId);

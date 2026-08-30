@@ -281,6 +281,30 @@ export async function getLessonWithCustom(
   return undefined;
 }
 
+// --- Cursos padrão ocultos ---
+// O dono pode "excluir" os cursos de demonstração: eles saem da lista, mas
+// progresso e conversas ficam guardados e a restauração é um clique.
+
+const HIDDEN_COURSES_FILE = path.join(DATA_DIR, "lms-cursos-ocultos.json");
+
+export async function getCursosOcultos(): Promise<string[]> {
+  return readJson<string[]>(HIDDEN_COURSES_FILE, []);
+}
+
+export async function ocultarCursoPadrao(courseId: string): Promise<void> {
+  await withLock(HIDDEN_COURSES_FILE, async () => {
+    const ocultos = await readJson<string[]>(HIDDEN_COURSES_FILE, []);
+    if (!ocultos.includes(courseId)) ocultos.push(courseId);
+    await writeJsonAtomic(HIDDEN_COURSES_FILE, ocultos);
+  });
+}
+
+export async function restaurarCursosPadrao(): Promise<void> {
+  await withLock(HIDDEN_COURSES_FILE, async () => {
+    await writeJsonAtomic(HIDDEN_COURSES_FILE, []);
+  });
+}
+
 // --- Cursos personalizados (criados pelo usuário) ---
 
 const CUSTOM_COURSES_FILE = path.join(DATA_DIR, "lms-custom-courses.json");
@@ -294,7 +318,11 @@ export async function getCustomCourses(): Promise<Course[]> {
 }
 
 export async function getAllCourses(): Promise<Course[]> {
-  return [...COURSES, ...(await getCustomCourses())];
+  const ocultos = await getCursosOcultos();
+  return [
+    ...COURSES.filter((c) => !ocultos.includes(c.id)),
+    ...(await getCustomCourses()),
+  ];
 }
 
 export async function getAllCategories(): Promise<string[]> {

@@ -45,7 +45,10 @@ export default async function CoursePage({
           <Link href="/assistente" className="nav-link text-sm opacity-[.72] transition hover:opacity-100">
             ← Todos os cursos
           </Link>
-          {isCustomCourseId(course.id) && <DeleteCourseButton courseId={course.id} />}
+          <DeleteCourseButton
+            courseId={course.id}
+            padrao={!isCustomCourseId(course.id)}
+          />
         </div>
         <h1 className="mt-2 font-[family-name:var(--font-display)] text-[32px] font-semibold tracking-[-0.01em]">
           {course.title}

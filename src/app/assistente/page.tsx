@@ -1,12 +1,20 @@
 import Link from "next/link";
-import { getAllCourses, countLessons, getAllProgress, getCustomModules } from "@/lib/lms";
+import {
+  getAllCourses,
+  countLessons,
+  getAllProgress,
+  getCustomModules,
+  getCursosOcultos,
+} from "@/lib/lms";
 import { CreateCourseForm } from "@/components/assistente/create-course-form";
+import { RestoreCoursesButton } from "@/components/assistente/restore-courses-button";
 
 export const dynamic = "force-dynamic";
 
 export default async function AssistentePage() {
   const progress = await getAllProgress();
   const courses = await getAllCourses();
+  const ocultos = await getCursosOcultos();
 
   const customLessonCounts = Object.fromEntries(
     await Promise.all(
@@ -83,6 +91,8 @@ export default async function AssistentePage() {
       ))}
 
       <CreateCourseForm existingCategories={categories} />
+
+      {ocultos.length > 0 && <RestoreCoursesButton quantos={ocultos.length} />}
     </>
   );
 }

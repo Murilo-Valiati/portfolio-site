@@ -59,6 +59,16 @@ substitui a antiga automação externa (Claude Cowork + Reclaim + Toki):
   desempenho; a rota do quiz usa getLessonWithCustom (lição personalizada com
   conteúdo também tem quiz).
 - Lição personalizada tem editor de conteúdo (PATCH /api/assistente/lessons).
+- Cursos padrão do catálogo podem ser OCULTADOS (não apagados): DELETE em
+  curso padrão grava em lms-cursos-ocultos.json; restauração via
+  POST /api/assistente/courses/restaurar (botão na página do Assistente).
+- Motor do Assistente (`lib/claude-cli.ts`): quando CLAUDE_CODE_OAUTH_TOKEN
+  (ou CLAUDE_ASSISTENTE=1 em dev) existe, tutor/quiz/criar-curso usam a
+  ASSINATURA pessoal do Claude via `claude -p` headless (prompt por STDIN,
+  nada de conteúdo do usuário em argv), com fallback automático pro Gemini.
+  SÓ o Assistente — a agenda continua no Gemini. Uso pessoal: se o site
+  servir terceiros um dia, migrar pra Claude API. O Dockerfile instala o CLI
+  no estágio runner.
 
 # Endurecimento (auditoria 2026-08-30)
 

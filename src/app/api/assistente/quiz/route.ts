@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateQuiz, mapearErroGemini } from "@/lib/gemini";
+import { claudeConfigurado, gerarQuizClaude } from "@/lib/claude-cli";
 import { getLessonWithCustom } from "@/lib/lms";
 
 export async function POST(req: NextRequest) {
@@ -22,6 +23,19 @@ export async function POST(req: NextRequest) {
       { error: "Esta lição ainda não tem conteúdo pra basear um quiz." },
       { status: 400 }
     );
+  }
+
+  // Motor preferido do Assistente: assinatura do Claude, com fallback Gemini.
+  if (claudeConfigurado()) {
+    try {
+      const questions = await gerarQuizClaude(
+        found.lesson.title,
+        found.lesson.content
+      );
+      return NextResponse.json({ questions, motor: "claude" });
+    } catch (err) {
+      console.warn("[quiz] Claude (assinatura) falhou, caindo pro Gemini:", err);
+    }
   }
 
   try {
