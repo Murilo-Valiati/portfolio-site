@@ -16,9 +16,12 @@ substitui a antiga automação externa (Claude Cowork + Reclaim + Toki):
   (horário no passado NUNCA escorrega de dia → "aguardando"; dedup por adoção
   de evento; só marca "processado" depois de reler o evento no Google) →
   3 tentativas → "erro" com aviso. A fila nunca para em silêncio.
-- `src/lib/discador.ts` — liga 15 min antes de evento com `ligar` (Twilio,
-  dormante sem `TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM` + `DISCADOR_PARA`).
-  Enquanto dormante, o sufixo " - Me Ligue" no título mantém o Toki funcionando.
+- `src/lib/discador.ts` — avisa 15 min antes de evento com `ligar`. Canal
+  preferido: Pushover em prioridade emergência (`PUSHOVER_TOKEN` +
+  `PUSHOVER_USER`), que repete até ser confirmado e fura o silencioso.
+  Alternativa: ligação Twilio (`TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM` +
+  `DISCADOR_PARA`). Dormante sem envs; enquanto dormante, o sufixo
+  " - Me Ligue" no título mantém o Toki funcionando.
 - `src/lib/agenda-cron.ts` + `src/instrumentation.ts` — setInterval no processo
   (container único): fila 5/5 min, discador 1/1 min. Notas novas também
   disparam a fila na hora via `after()` na rota.

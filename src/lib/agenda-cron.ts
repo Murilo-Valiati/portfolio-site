@@ -1,5 +1,5 @@
 import { processarFila } from "@/lib/agenda-worker";
-import { dispararLigacoes } from "@/lib/discador";
+import { dispararAvisos } from "@/lib/discador";
 
 /**
  * Cron interno do processo. O app roda como um único container Node de vida
@@ -25,7 +25,7 @@ export function iniciarCronDaAgenda(): void {
     fn().catch((err) => console.error(`[agenda-cron] ${nome}:`, err));
 
   setInterval(roda(processarFila, "fila"), FILA_A_CADA_MS);
-  setInterval(roda(dispararLigacoes, "discador"), DISCADOR_A_CADA_MS);
+  setInterval(roda(dispararAvisos, "avisador"), DISCADOR_A_CADA_MS);
 
   // Primeira passada logo após o boot, pra fila não esperar 5 minutos.
   setTimeout(roda(processarFila, "fila (boot)"), 10_000);
