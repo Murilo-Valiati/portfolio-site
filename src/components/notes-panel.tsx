@@ -185,6 +185,18 @@ export function NotesPanel() {
     await fetch(`/api/notas/${id}`, { method: "DELETE" });
   }
 
+  async function editText(note: Note, value: string) {
+    const res = await fetch(`/api/notas/${note.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: value }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setNotes((prev) => prev.map((n) => (n.id === note.id ? data.note : n)));
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[var(--color-background)] px-6 py-10 text-[var(--color-foreground)] sm:px-10 sm:py-14">
       <div className="mx-auto flex max-w-3xl flex-col gap-10">
@@ -264,6 +276,7 @@ export function NotesPanel() {
                         note={note}
                         onToggle={() => toggleStatus(note)}
                         onRemove={() => remove(note.id)}
+                        onEditText={(value) => editText(note, value)}
                       />
                     ))}
                   </div>
@@ -474,14 +487,25 @@ function NoteRow({
   note,
   onToggle,
   onRemove,
+  onEditText,
 }: {
   note: Note;
   onToggle: () => void;
   onRemove: () => void;
+  onEditText: (value: string) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note.text);
   const done = note.status === "processado";
   const attention = note.status === "aguardando" || note.status === "erro";
+
+  function saveEdit() {
+    const value = draft.trim();
+    if (!value) return;
+    setEditing(false);
+    onEditText(value);
+  }
 
   const action =
     "font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-40 transition-opacity hover:underline hover:opacity-100 focus-visible:opacity-100";
@@ -510,15 +534,48 @@ function NoteRow({
               : "border-[var(--color-accent)]/30"
         }`}
       >
-        <p
-          className={`whitespace-pre-wrap text-[15px] leading-relaxed ${
-            done ? "opacity-50" : ""
-          }`}
-        >
-          {note.text}
-        </p>
+        {editing ? (
+          <div className="flex flex-col gap-2">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveEdit();
+                if (e.key === "Escape") setEditing(false);
+              }}
+              rows={2}
+              autoFocus
+              className="w-full resize-y rounded-[8px] border border-[var(--color-accent)]/40 bg-transparent p-2 text-[15px] leading-relaxed outline-none"
+            />
+            <div className="flex gap-4">
+              <button
+                onClick={saveEdit}
+                className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider text-[var(--color-accent)] underline"
+              >
+                salvar e reprocessar
+              </button>
+              <button
+                onClick={() => {
+                  setEditing(false);
+                  setDraft(note.text);
+                }}
+                className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-40 hover:opacity-100"
+              >
+                cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p
+            className={`whitespace-pre-wrap text-[15px] leading-relaxed ${
+              done ? "opacity-50" : ""
+            }`}
+          >
+            {note.text}
+          </p>
+        )}
 
-        {attention && note.aviso && (
+        {attention && note.aviso && !editing && (
           <p className="text-[13px] leading-relaxed text-amber-500">
             {note.status === "erro" ? "⚠ " : ""}
             {note.aviso}
@@ -561,6 +618,17 @@ function NoteRow({
               </>
             ) : (
               <>
+                {attention && !editing && (
+                  <button
+                    onClick={() => {
+                      setDraft(note.text);
+                      setEditing(true);
+                    }}
+                    className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider text-[var(--color-accent)] transition-opacity hover:underline"
+                  >
+                    corrigir
+                  </button>
+                )}
                 <button onClick={onToggle} className={action}>
                   {done
                     ? "voltar pra fila"

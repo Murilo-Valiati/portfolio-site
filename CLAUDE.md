@@ -26,7 +26,10 @@ substitui a antiga automação externa (Claude Cowork + Reclaim + Toki):
   (container único): fila 5/5 min, discador 1/1 min. Notas novas também
   disparam a fila na hora via `after()` na rota.
 - Estados da nota: `pendente` → `processado`; `aguardando` (precisa do dono;
-  reabrir = tentar de novo) e `erro` (3 falhas técnicas).
+  reabrir = tentar de novo) e `erro` (3 falhas técnicas). Cair em
+  aguardando/erro dispara Pushover normal na hora. O painel pode CORRIGIR o
+  texto de uma nota (PATCH com `{text}`, só com sessão — chave não reescreve
+  texto), o que a devolve pra fila zerada (limpa interpretação e evento).
 - Bancada dev: `GET /api/notas/teste-interpretacao?texto=...&criadaEm=...`
   (404 em produção).
 - `src/lib/rotina.ts` — resumo matinal (7h, todo dia) e revisão semanal
@@ -40,3 +43,17 @@ substitui a antiga automação externa (Claude Cowork + Reclaim + Toki):
 - Compatibilidade: os endpoints do Cowork (GET com `?key=`, mutação via GET em
   `/processar`) continuam intactos DE PROPÓSITO durante a transição. Não
   remover sem confirmar que a automação externa foi desligada.
+
+# Endurecimento (auditoria 2026-08-30)
+
+- `src/proxy.ts` substitui o middleware deprecado do Next 16 (mesma lógica);
+  `LMS_SESSION_COOKIE`/`DAILY_LOG_PATH` moraram para `lib/session.ts`.
+- Login com freio de força bruta em memória (5 falhas → bloqueio exponencial
+  até 15 min por IP). `SESSION_SECRET` ausente em produção derruba a sessão
+  com erro em vez de usar o fallback de dev.
+- `poweredByHeader: false`; headers de segurança (HSTS etc.) no Caddyfile da
+  EC2. Manifest PWA: instalar o site na tela de início abre `/admin/hoje` em
+  tela cheia.
+- Backup do /data: cron diário na EC2 (`/etc/cron.daily/backup-app-data`)
+  guarda 14 dias de tar.gz em /opt/backups — proteção contra corrupção e
+  exclusão acidental; ainda não cobre perda da instância (S3 pendente de IAM).

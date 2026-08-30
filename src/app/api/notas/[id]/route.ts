@@ -3,7 +3,12 @@ import { after } from "next/server";
 import { cookies } from "next/headers";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/session";
 import { checkNotesKey } from "@/lib/notes-key";
-import { deleteNote, setNoteStatus, type NoteStatus } from "@/lib/notes";
+import {
+  deleteNote,
+  setNoteStatus,
+  updateNoteText,
+  type NoteStatus,
+} from "@/lib/notes";
 import { processarFila } from "@/lib/agenda-worker";
 
 // PATCH aceita só os dois estados "manuais" — os demais são do worker.
@@ -22,13 +27,33 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await hasSession())) {
+  const sessao = await hasSession();
+  if (!sessao) {
     const keyError = checkNotesKey(req);
     if (keyError) return keyError;
   }
 
   const { id } = await params;
   const body = await req.json().catch(() => null);
+
+  // Corrigir o texto reabre a nota do zero. Só pelo painel: a chave da
+  // automação marca status, nunca reescreve o que você ditou.
+  if (typeof body?.text === "string") {
+    if (!sessao) {
+      return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+    }
+    const texto = body.text.trim();
+    if (!texto) {
+      return NextResponse.json({ error: "Texto obrigatório." }, { status: 400 });
+    }
+    const note = await updateNoteText(id, texto);
+    if (!note) {
+      return NextResponse.json({ error: "Nota não encontrada." }, { status: 404 });
+    }
+    after(() => processarFila());
+    return NextResponse.json({ note });
+  }
+
   const status = body?.status;
 
   if (!VALID_STATUS.includes(status)) {

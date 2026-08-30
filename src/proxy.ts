@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/session";
+import {
+  verifySessionToken,
+  SESSION_COOKIE_NAME,
+  LMS_SESSION_COOKIE,
+  DAILY_LOG_PATH,
+} from "@/lib/session";
 
-export const LMS_SESSION_COOKIE = "lms_session";
-export const DAILY_LOG_PATH = "/log-5bda56349c8d";
-
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const isAssistenteRoute =

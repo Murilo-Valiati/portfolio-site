@@ -14,6 +14,7 @@ import {
   type EventoGoogle,
   type NovoEvento,
 } from "@/lib/google-calendar";
+import { enviarPushover, pushoverConfigurado } from "@/lib/pushover";
 
 /**
  * O worker que substitui a automação externa (Cowork). Roda na hora em que a
@@ -64,11 +65,15 @@ export async function processarFila(): Promise<void> {
         }
 
         const tentativas = (nota.tentativas || 0) + 1;
+        const esgotou = tentativas >= MAX_TENTATIVAS;
         await updateNote(nota.id, {
           tentativas,
           aviso: `Falha técnica (tentativa ${tentativas}/${MAX_TENTATIVAS}): ${aviso}`,
-          ...(tentativas >= MAX_TENTATIVAS ? { status: "erro" as const } : {}),
+          ...(esgotou ? { status: "erro" as const } : {}),
         });
+        if (esgotou) {
+          await notificarAtencao("⚠️ Nota com erro", nota.text, aviso);
+        }
         console.error(`[agenda-worker] nota ${nota.id}:`, err);
       });
     }
@@ -341,6 +346,30 @@ async function concluir(nota: Note, aviso?: string): Promise<void> {
 
 async function aguardar(nota: Note, aviso: string): Promise<void> {
   await updateNote(nota.id, { status: "aguardando", aviso });
+  await notificarAtencao("✋ Nota esperando você", nota.text, aviso);
+}
+
+/**
+ * Avisa NA HORA que uma nota parou — sem isso, você só descobriria no resumo
+ * das 7h ou abrindo o painel. Prioridade normal: informa, não grita.
+ */
+async function notificarAtencao(
+  titulo: string,
+  textoDaNota: string,
+  motivo: string
+): Promise<void> {
+  if (!pushoverConfigurado()) return;
+  try {
+    await enviarPushover({
+      titulo,
+      mensagem: `"${textoDaNota}"\n${motivo}`,
+      prioridade: 0,
+      url: "https://murilovaliati.com.br/admin/notas",
+      urlTitulo: "Corrigir no painel",
+    });
+  } catch (err) {
+    console.error("[agenda-worker] aviso de atenção falhou:", err);
+  }
 }
 
 function legivel(inicio: string): string {

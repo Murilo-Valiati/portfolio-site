@@ -23,6 +23,11 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Murilo Valiati | Portfólio",
   description: "Portfólio pessoal de Murilo Valiati.",
+  appleWebApp: {
+    capable: true,
+    title: "Hoje",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

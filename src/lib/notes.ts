@@ -106,6 +106,34 @@ export async function setNoteStatus(
   });
 }
 
+/**
+ * Corrige o texto de uma nota (ex.: completar a hora que faltou) e a devolve
+ * pra fila do zero: interpretação, evento e avisos anteriores não valem mais
+ * para o texto novo.
+ */
+export async function updateNoteText(
+  id: string,
+  text: string
+): Promise<Note | null> {
+  return withLock(NOTES_FILE, async () => {
+    const notes = await readNotes();
+    const note = notes.find((n) => n.id === id);
+    if (!note) return null;
+
+    note.text = text;
+    note.status = "pendente";
+    delete note.processedAt;
+    delete note.aviso;
+    delete note.tentativas;
+    delete note.processadoPor;
+    delete note.interpretacao;
+    delete note.evento;
+
+    await writeNotes(notes);
+    return note;
+  });
+}
+
 /** Merge parcial usado pelo worker. Campos com `undefined` são removidos. */
 export async function updateNote(
   id: string,

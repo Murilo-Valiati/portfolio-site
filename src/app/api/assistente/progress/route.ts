@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { LMS_SESSION_COOKIE } from "@/middleware";
+import { LMS_SESSION_COOKIE } from "@/lib/session";
 import { getAllProgress, toggleLessonComplete, findAnyCourse } from "@/lib/lms";
 
 export async function GET() {

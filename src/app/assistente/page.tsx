@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { LMS_SESSION_COOKIE } from "@/middleware";
+import { LMS_SESSION_COOKIE } from "@/lib/session";
 import { getAllCourses, countLessons, getAllProgress, getCustomModules } from "@/lib/lms";
 import { CreateCourseForm } from "@/components/assistente/create-course-form";
 

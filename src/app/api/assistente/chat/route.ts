@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { chatWithTutor, ChatMessage } from "@/lib/gemini";
-import { LMS_SESSION_COOKIE } from "@/middleware";
+import { LMS_SESSION_COOKIE } from "@/lib/session";
 import { getChatHistory, appendChatExchange } from "@/lib/chat-history";
 
 export async function GET(req: NextRequest) {

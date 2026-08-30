@@ -1,8 +1,25 @@
 import { SignJWT, jwtVerify } from "jose";
 
 const SESSION_COOKIE = "admin_session";
-const secret = () =>
-  new TextEncoder().encode(process.env.SESSION_SECRET || "dev-only-insecure-secret");
+
+/** Cookie anônimo do assistente (progresso e histórico de chat do LMS). */
+export const LMS_SESSION_COOKIE = "lms_session";
+export const DAILY_LOG_PATH = "/log-5bda56349c8d";
+
+const secret = () => {
+  const valor = process.env.SESSION_SECRET;
+  if (!valor) {
+    // Sem segredo de verdade, qualquer um forja o cookie do painel. Em
+    // produção é melhor nenhum login do que um login falsificável.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "SESSION_SECRET não configurada — sessões desabilitadas por segurança."
+      );
+    }
+    return new TextEncoder().encode("dev-only-insecure-secret");
+  }
+  return new TextEncoder().encode(valor);
+};
 
 export async function createSessionToken(email: string): Promise<string> {
   return new SignJWT({ email })

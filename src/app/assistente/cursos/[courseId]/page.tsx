@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { LMS_SESSION_COOKIE } from "@/middleware";
+import { LMS_SESSION_COOKIE } from "@/lib/session";
 import { findAnyCourse, getCustomModules, getProgress, isCustomCourseId } from "@/lib/lms";
 import { CourseModules } from "@/components/assistente/course-modules";
 import { ChatWidget } from "@/components/assistente/chat-widget";

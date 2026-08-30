@@ -134,13 +134,21 @@ export function HojePanel({
                   {n.erro ? "⚠ " : ""}
                   {n.aviso}
                 </p>
-                <button
-                  onClick={() => tentarDeNovo(n.id)}
-                  disabled={reprocessadas.has(n.id)}
-                  className={`${mono} self-start text-[var(--color-accent)] hover:underline disabled:opacity-40`}
-                >
-                  {reprocessadas.has(n.id) ? "reprocessando…" : "tentar de novo"}
-                </button>
+                <div className="flex gap-4">
+                  <a
+                    href="/admin/notas"
+                    className={`${mono} text-[var(--color-accent)] hover:underline`}
+                  >
+                    corrigir
+                  </a>
+                  <button
+                    onClick={() => tentarDeNovo(n.id)}
+                    disabled={reprocessadas.has(n.id)}
+                    className={`${mono} text-[var(--color-accent)] hover:underline disabled:opacity-40`}
+                  >
+                    {reprocessadas.has(n.id) ? "reprocessando…" : "tentar de novo"}
+                  </button>
+                </div>
               </div>
             ))}
             {pendentes > 0 && (
