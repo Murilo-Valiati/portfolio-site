@@ -1,7 +1,26 @@
 import path from "path";
 import { readJson, withLock, writeJsonAtomic } from "@/lib/json-store";
+import type { Interpretacao } from "@/lib/interprete";
 
-export type NoteStatus = "pendente" | "processado";
+/**
+ * "pendente"   -> na fila, o worker ainda vai aplicar.
+ * "processado" -> evento confirmado no calendário (ou despachada à mão).
+ * "aguardando" -> o worker parou de propósito e precisa de você (horário já
+ *                 passou, evento ambíguo, sem horário para ligação…). Nunca é
+ *                 retomada sozinha: reabrir pelo painel devolve pra fila.
+ * "erro"       -> o worker tentou 3 vezes e falhou (rede, API fora…).
+ */
+export type NoteStatus = "pendente" | "processado" | "aguardando" | "erro";
+
+export interface EventoDaNota {
+  googleEventId: string;
+  titulo: string;
+  /** ISO com offset, ou "YYYY-MM-DD" para evento de dia inteiro. */
+  inicio: string;
+  fim: string;
+  diaInteiro: boolean;
+  ligar: boolean;
+}
 
 export interface Note {
   id: string;
@@ -10,6 +29,20 @@ export interface Note {
   status: NoteStatus;
   /** Set when the note flips to "processado". */
   processedAt?: string;
+  /** Evento criado/encontrado no Google Agenda por esta nota. */
+  evento?: EventoDaNota;
+  /**
+   * Cache da interpretação do Gemini: um retry por falha técnica no calendário
+   * não gasta outra chamada de IA. Reabrir a nota limpa o cache de propósito,
+   * pra "tentar de novo" incluir uma nova interpretação.
+   */
+  interpretacao?: Interpretacao;
+  /** Motivo humano de um "aguardando"/"erro", exibido no painel. */
+  aviso?: string;
+  /** Tentativas de processamento que falharam com erro técnico. */
+  tentativas?: number;
+  /** Quem despachou: o worker do site ou a automação externa (Cowork). */
+  processadoPor?: "site" | "externo";
 }
 
 const DATA_DIR = process.env.CONTENT_DATA_DIR || path.join(process.cwd(), ".data");
@@ -57,6 +90,39 @@ export async function setNoteStatus(
     note.status = status;
     if (status === "processado") note.processedAt = new Date().toISOString();
     else delete note.processedAt;
+
+    // Reabrir limpa o rastro da tentativa anterior para o worker recomeçar do
+    // zero. O evento fica: se ele ainda existir no Google, o worker o adota em
+    // vez de duplicar.
+    if (status === "pendente") {
+      delete note.aviso;
+      delete note.tentativas;
+      delete note.processadoPor;
+      delete note.interpretacao;
+    }
+
+    await writeNotes(notes);
+    return note;
+  });
+}
+
+/** Merge parcial usado pelo worker. Campos com `undefined` são removidos. */
+export async function updateNote(
+  id: string,
+  patch: Partial<Omit<Note, "id" | "text" | "createdAt">>
+): Promise<Note | null> {
+  return withLock(NOTES_FILE, async () => {
+    const notes = await readNotes();
+    const note = notes.find((n) => n.id === id);
+    if (!note) return null;
+
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined) {
+        delete (note as unknown as Record<string, unknown>)[key];
+      } else {
+        (note as unknown as Record<string, unknown>)[key] = value;
+      }
+    }
 
     await writeNotes(notes);
     return note;

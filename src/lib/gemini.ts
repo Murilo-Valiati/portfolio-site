@@ -10,7 +10,8 @@ type ContentPart = { text: string } | { inlineData: { mimeType: string; data: st
 
 async function generateContent(
   contents: { role: string; parts: ContentPart[] }[],
-  systemInstruction?: string
+  systemInstruction?: string,
+  generationConfig?: Record<string, unknown>
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -27,6 +28,7 @@ async function generateContent(
         ...(systemInstruction
           ? { systemInstruction: { parts: [{ text: systemInstruction }] } }
           : {}),
+        ...(generationConfig ? { generationConfig } : {}),
       }),
     }
   );
@@ -107,6 +109,29 @@ export async function transcribeAudio(
 
   const raw = await generateContent(contents, systemInstruction);
   return raw.trim();
+}
+
+/**
+ * Chamada em modo JSON: o Gemini é obrigado a responder JSON válido no formato
+ * do `responseSchema` (subconjunto de OpenAPI). Quem chama ainda deve validar
+ * os campos — o schema garante a forma, não o bom senso.
+ */
+export async function generateJson(
+  prompt: string,
+  systemInstruction: string,
+  responseSchema: Record<string, unknown>
+): Promise<unknown> {
+  const raw = await generateContent(
+    [{ role: "user", parts: [{ text: prompt }] }],
+    systemInstruction,
+    { responseMimeType: "application/json", responseSchema }
+  );
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(`Gemini respondeu JSON inválido: ${raw.slice(0, 200)}`);
+  }
 }
 
 export interface CourseProposal {

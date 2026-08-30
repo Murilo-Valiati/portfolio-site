@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { cookies } from "next/headers";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/session";
 import { checkNotesKey } from "@/lib/notes-key";
 import { deleteNote, setNoteStatus, type NoteStatus } from "@/lib/notes";
+import { processarFila } from "@/lib/agenda-worker";
 
+// PATCH aceita só os dois estados "manuais" — os demais são do worker.
 const VALID_STATUS: NoteStatus[] = ["pendente", "processado"];
 
 async function hasSession(): Promise<boolean> {
@@ -39,6 +42,9 @@ export async function PATCH(
   if (!note) {
     return NextResponse.json({ error: "Nota não encontrada." }, { status: 404 });
   }
+
+  // Reabrir uma nota é pedir pro worker tentar de novo, já.
+  if (status === "pendente") after(() => processarFila());
 
   return NextResponse.json({ note });
 }

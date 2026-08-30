@@ -1,1 +1,31 @@
 @AGENTS.md
+
+# Agenda por voz (worker interno)
+
+O subsistema de notas (`/admin/notas` + `/api/notas`) tem um worker interno que
+substitui a antiga automação externa (Claude Cowork + Reclaim + Toki):
+
+- `src/lib/interprete.ts` — Gemini (JSON mode) transforma a nota ditada em ação
+  estruturada. Datas relativas resolvem pelo `createdAt` DA NOTA, nunca pela
+  hora da execução. Não relaxar as regras do prompt: cada uma veio de erro real.
+- `src/lib/google-calendar.ts` — Google Calendar via service account (JWT
+  assinado com o `jose`; sem dependência nova). Envs: `GOOGLE_SA_EMAIL`,
+  `GOOGLE_SA_PRIVATE_KEY_B64`, `GOOGLE_CALENDAR_ID`. Sem elas o worker fica
+  inerte e o site se comporta como antes (fila pendente pro Cowork).
+- `src/lib/agenda-worker.ts` — pipeline: interpretar → guardas em código
+  (horário no passado NUNCA escorrega de dia → "aguardando"; dedup por adoção
+  de evento; só marca "processado" depois de reler o evento no Google) →
+  3 tentativas → "erro" com aviso. A fila nunca para em silêncio.
+- `src/lib/discador.ts` — liga 15 min antes de evento com `ligar` (Twilio,
+  dormante sem `TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM` + `DISCADOR_PARA`).
+  Enquanto dormante, o sufixo " - Me Ligue" no título mantém o Toki funcionando.
+- `src/lib/agenda-cron.ts` + `src/instrumentation.ts` — setInterval no processo
+  (container único): fila 5/5 min, discador 1/1 min. Notas novas também
+  disparam a fila na hora via `after()` na rota.
+- Estados da nota: `pendente` → `processado`; `aguardando` (precisa do dono;
+  reabrir = tentar de novo) e `erro` (3 falhas técnicas).
+- Bancada dev: `GET /api/notas/teste-interpretacao?texto=...&criadaEm=...`
+  (404 em produção).
+- Compatibilidade: os endpoints do Cowork (GET com `?key=`, mutação via GET em
+  `/processar`) continuam intactos DE PROPÓSITO durante a transição. Não
+  remover sem confirmar que a automação externa foi desligada.

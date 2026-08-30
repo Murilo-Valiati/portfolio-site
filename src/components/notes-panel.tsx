@@ -3,13 +3,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Note, NoteStatus } from "@/lib/notes";
 
-type Filter = "todas" | NoteStatus;
+type Filter = "todas" | "pendente" | "processado" | "atencao";
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "todas", label: "todas" },
   { key: "pendente", label: "na fila" },
   { key: "processado", label: "despachadas" },
+  { key: "atencao", label: "atenção" },
 ];
+
+const PRECISA_DE_VOCE: NoteStatus[] = ["aguardando", "erro"];
+
+/** "22/09 09:00" (ou só "22/09" para evento de dia inteiro), fuso de SP. */
+function eventoLabel(inicio: string, diaInteiro: boolean): string {
+  const d = diaInteiro
+    ? new Date(`${inicio}T12:00:00-03:00`)
+    : new Date(inicio);
+  return d.toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    ...(diaInteiro ? {} : { hour: "2-digit", minute: "2-digit" }),
+  });
+}
 
 const MONTHS = [
   "janeiro", "fevereiro", "março", "abril", "maio", "junho",
@@ -81,10 +97,12 @@ export function NotesPanel() {
     };
   }, []);
 
-  const visible = useMemo(
-    () => (filter === "todas" ? notes : notes.filter((n) => n.status === filter)),
-    [notes, filter]
-  );
+  const visible = useMemo(() => {
+    if (filter === "todas") return notes;
+    if (filter === "atencao")
+      return notes.filter((n) => PRECISA_DE_VOCE.includes(n.status));
+    return notes.filter((n) => n.status === filter);
+  }, [notes, filter]);
 
   const groups = useMemo(() => {
     const out: { label: string; items: Note[] }[] = [];
@@ -98,6 +116,9 @@ export function NotesPanel() {
   }, [visible]);
 
   const pendingCount = notes.filter((n) => n.status === "pendente").length;
+  const attentionCount = notes.filter((n) =>
+    PRECISA_DE_VOCE.includes(n.status)
+  ).length;
 
   const lastRun = useMemo(() => {
     const stamps = notes
@@ -134,6 +155,8 @@ export function NotesPanel() {
   }
 
   async function toggleStatus(note: Note) {
+    // pendente -> despachada à mão; qualquer outro estado -> volta pra fila
+    // (que também é o "tentar de novo" de aguardando/erro).
     const next: NoteStatus =
       note.status === "pendente" ? "processado" : "pendente";
 
@@ -178,12 +201,17 @@ export function NotesPanel() {
           </h1>
 
           <p className="max-w-xl text-[14px] leading-relaxed opacity-60">
-            Compromissos com hora marcada, escritos como vierem à cabeça. Uma vez
-            por dia a automação lê o que está na fila, cria os eventos no
-            calendário e devolve a nota como despachada.
+            Compromissos escritos como vierem à cabeça. O site interpreta a nota
+            na hora, cria o evento no Google Agenda e, se você pedir
+            &ldquo;me ligue&rdquo;, telefona 15 minutos antes. O que precisar de
+            você fica em <em>atenção</em>.
           </p>
 
-          <StatusLine pendingCount={pendingCount} lastRun={lastRun} />
+          <StatusLine
+            pendingCount={pendingCount}
+            attentionCount={attentionCount}
+            lastRun={lastRun}
+          />
         </header>
 
         <Composer
@@ -251,9 +279,11 @@ export function NotesPanel() {
 
 function StatusLine({
   pendingCount,
+  attentionCount,
   lastRun,
 }: {
   pendingCount: number;
+  attentionCount: number;
   lastRun: string | null;
 }) {
   return (
@@ -275,11 +305,25 @@ function StatusLine({
           ? "fila vazia"
           : `${pendingCount} na fila`}
       </span>
+      {attentionCount > 0 && (
+        <>
+          <span className="opacity-25">/</span>
+          <span className="inline-flex items-center gap-2 text-amber-500">
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-amber-500"
+              aria-hidden="true"
+            />
+            {attentionCount === 1
+              ? "1 precisa de você"
+              : `${attentionCount} precisam de você`}
+          </span>
+        </>
+      )}
       <span className="opacity-25">/</span>
       <span className="opacity-55">
         {lastRun
-          ? `automação passou ${sinceLabel(lastRun)}`
-          : "automação ainda não passou"}
+          ? `última despachada ${sinceLabel(lastRun)}`
+          : "nenhuma despachada ainda"}
       </span>
     </div>
   );
@@ -419,7 +463,9 @@ function EmptyState({ filter }: { filter: Filter }) {
       ? "Nada na fila. Tudo que você escreveu já virou evento."
       : filter === "processado"
         ? "Nenhuma nota despachada ainda."
-        : "Nenhuma nota ainda. Escreva a primeira acima.";
+        : filter === "atencao"
+          ? "Nada esperando você. Tudo fluindo."
+          : "Nenhuma nota ainda. Escreva a primeira acima.";
 
   return <p className="pl-8 text-[14px] opacity-45">{copy}</p>;
 }
@@ -435,25 +481,33 @@ function NoteRow({
 }) {
   const [confirming, setConfirming] = useState(false);
   const done = note.status === "processado";
+  const attention = note.status === "aguardando" || note.status === "erro";
 
   const action =
     "font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-40 transition-opacity hover:underline hover:opacity-100 focus-visible:opacity-100";
 
   return (
     <article className="group relative pl-8">
-      {/* node on the rail: filled while queued, hollow once dispatched */}
+      {/* node on the rail: filled while queued, hollow once dispatched,
+          amber when the note needs the owner */}
       <span
         className={`absolute left-0 top-[7px] h-[15px] w-[15px] rounded-full border-2 bg-[var(--color-background)] ${
           done
             ? "border-[var(--color-border)]"
-            : "border-[var(--color-accent)] shadow-[inset_0_0_0_3px_var(--color-accent)]"
+            : attention
+              ? "border-amber-500 shadow-[inset_0_0_0_3px_#f59e0b]"
+              : "border-[var(--color-accent)] shadow-[inset_0_0_0_3px_var(--color-accent)]"
         }`}
         aria-hidden="true"
       />
 
       <div
         className={`flex flex-col gap-2.5 rounded-[12px] border bg-[var(--color-surface)] p-4 transition-colors sm:p-5 ${
-          done ? "border-[var(--color-border)]" : "border-[var(--color-accent)]/30"
+          done
+            ? "border-[var(--color-border)]"
+            : attention
+              ? "border-amber-500/40"
+              : "border-[var(--color-accent)]/30"
         }`}
       >
         <p
@@ -463,6 +517,20 @@ function NoteRow({
         >
           {note.text}
         </p>
+
+        {attention && note.aviso && (
+          <p className="text-[13px] leading-relaxed text-amber-500">
+            {note.status === "erro" ? "⚠ " : ""}
+            {note.aviso}
+          </p>
+        )}
+
+        {done && note.evento && (
+          <p className="font-[family-name:var(--font-mono)] text-[12px] text-[var(--color-accent)] opacity-80">
+            ✓ {note.evento.titulo} ·{" "}
+            {eventoLabel(note.evento.inicio, note.evento.diaInteiro)}
+          </p>
+        )}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className="font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider opacity-40">
@@ -494,7 +562,11 @@ function NoteRow({
             ) : (
               <>
                 <button onClick={onToggle} className={action}>
-                  {done ? "voltar pra fila" : "marcar despachada"}
+                  {done
+                    ? "voltar pra fila"
+                    : attention
+                      ? "tentar de novo"
+                      : "marcar despachada"}
                 </button>
                 <button onClick={() => setConfirming(true)} className={action}>
                   excluir

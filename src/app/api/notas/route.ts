@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { cookies } from "next/headers";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/session";
 import { checkNotesKey, checkNotesWriteKey } from "@/lib/notes-key";
 import { addNote, getNotes, type NoteStatus } from "@/lib/notes";
+import { processarFila } from "@/lib/agenda-worker";
 
-const VALID_STATUS: NoteStatus[] = ["pendente", "processado"];
+const VALID_STATUS: NoteStatus[] = [
+  "pendente",
+  "processado",
+  "aguardando",
+  "erro",
+];
 
 /**
  * A fila é lida por automação externa de hora em hora e precisa refletir o
@@ -31,7 +38,10 @@ export async function GET(req: NextRequest) {
 
   if (statusParam && !VALID_STATUS.includes(statusParam as NoteStatus)) {
     return NextResponse.json(
-      { error: 'status deve ser "pendente" ou "processado".' },
+      {
+        error:
+          'status deve ser "pendente", "processado", "aguardando" ou "erro".',
+      },
       { status: 400 }
     );
   }
@@ -77,5 +87,10 @@ export async function POST(req: NextRequest) {
   }
 
   const note = await addNote(text);
+
+  // Processa a fila assim que a resposta for enviada — a nota vira evento em
+  // segundos, não na próxima passada do cron. Inerte sem o Google configurado.
+  after(() => processarFila());
+
   return NextResponse.json({ note });
 }
