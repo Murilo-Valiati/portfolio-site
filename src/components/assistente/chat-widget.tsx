@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -51,6 +51,22 @@ export function ChatWidget({
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creatingCourse, setCreatingCourse] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // A conversa se comporta como chat: o fim é sempre visível.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, loading]);
+
+  useEffect(() => {
+    setHistoryLoading(true);
+    fetch(`/api/assistente/chat?threadKey=${encodeURIComponent(threadKey)}`)
+      .then((res) => res.json())
+      .then((data) => setMessages(Array.isArray(data.history) ? data.history : []))
+      .finally(() => setHistoryLoading(false));
+  }, [threadKey]);
 
   async function handleCreateCourse() {
     if (creatingCourse || messages.length === 0) return;
@@ -71,31 +87,56 @@ export function ChatWidget({
     }
   }
 
-  useEffect(() => {
-    setHistoryLoading(true);
-    fetch(`/api/assistente/chat?threadKey=${encodeURIComponent(threadKey)}`)
-      .then((res) => res.json())
-      .then((data) => setMessages(Array.isArray(data.history) ? data.history : []))
-      .finally(() => setHistoryLoading(false));
-  }, [threadKey]);
+  async function handleClear() {
+    setConfirmClear(false);
+    setMessages([]);
+    setError(null);
+    await fetch(`/api/assistente/chat?threadKey=${encodeURIComponent(threadKey)}`, {
+      method: "DELETE",
+    });
+  }
 
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
     setInput("");
     setError(null);
-    const history = messages;
     setMessages((m) => [...m, { role: "user", text }]);
     setLoading(true);
     try {
       const res = await fetch("/api/assistente/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history, courseContext, threadKey }),
+        body: JSON.stringify({ message: text, courseContext, threadKey }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao responder.");
-      setMessages((m) => [...m, { role: "model", text: data.reply }]);
+
+      // Resposta boa chega como stream de texto puro; JSON pode ser erro OU a
+      // resposta inteira (fallback quando a rede não deixa o stream passar).
+      const tipo = res.headers.get("content-type") || "";
+      if (!res.ok || tipo.includes("application/json")) {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && typeof data.reply === "string") {
+          setMessages((m) => [...m, { role: "model", text: data.reply }]);
+          return;
+        }
+        throw new Error(data.error || "Erro ao responder.");
+      }
+
+      setMessages((m) => [...m, { role: "model", text: "" }]);
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const pedaco = decoder.decode(value, { stream: true });
+        if (!pedaco) continue;
+        setMessages((m) => {
+          const proximo = [...m];
+          const ultima = proximo[proximo.length - 1];
+          proximo[proximo.length - 1] = { ...ultima, text: ultima.text + pedaco };
+          return proximo;
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao responder.");
     } finally {
@@ -108,18 +149,49 @@ export function ChatWidget({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">Tutor de IA</h2>
         {messages.length > 0 && (
-          <button
-            type="button"
-            onClick={handleCreateCourse}
-            disabled={creatingCourse}
-            className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
-          >
-            {creatingCourse ? "Criando curso..." : "Criar curso a partir desta conversa"}
-          </button>
+          <div className="flex items-center gap-3">
+            {confirmClear ? (
+              <>
+                <span className="text-xs opacity-60">apagar a conversa?</span>
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="text-xs text-red-400 underline"
+                >
+                  apagar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmClear(false)}
+                  className="text-xs opacity-50 hover:opacity-100"
+                >
+                  cancelar
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setConfirmClear(true)}
+                  className="text-xs opacity-50 transition hover:text-red-400 hover:opacity-100"
+                >
+                  limpar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateCourse}
+                  disabled={creatingCourse}
+                  className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] disabled:opacity-50"
+                >
+                  {creatingCourse ? "Criando curso..." : "Criar curso a partir desta conversa"}
+                </button>
+              </>
+            )}
+          </div>
         )}
       </div>
 
-      <div className="flex max-h-96 flex-col gap-3 overflow-y-auto">
+      <div ref={scrollRef} className="flex max-h-96 flex-col gap-3 overflow-y-auto">
         {!historyLoading && messages.length === 0 && (
           <p className="text-sm opacity-60">
             Pergunte algo sobre esta lição ou peça um exemplo.
@@ -143,7 +215,7 @@ export function ChatWidget({
             )}
           </div>
         ))}
-        {loading && (
+        {loading && messages[messages.length - 1]?.role !== "model" && (
           <div className="self-start text-sm opacity-60">Pensando...</div>
         )}
       </div>

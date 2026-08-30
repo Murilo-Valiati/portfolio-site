@@ -8,18 +8,51 @@ interface QuizQuestion {
   correctIndex: number;
 }
 
+export interface UltimoResultado {
+  score: number;
+  total: number;
+  date: string;
+}
+
 export function QuizPanel({
   courseId,
   lessonId,
+  ultimoInicial,
 }: {
   courseId: string;
   lessonId: string;
+  ultimoInicial?: UltimoResultado | null;
 }) {
   const [questions, setQuestions] = useState<QuizQuestion[] | null>(null);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [ultimo, setUltimo] = useState<UltimoResultado | null>(ultimoInicial ?? null);
+
+  // Registra o desempenho: sem memória, o quiz é brincadeira, não estudo.
+  function corrigir() {
+    if (!questions) return;
+    setSubmitted(true);
+    const acertos = questions.reduce(
+      (acc, q, i) => acc + (answers[i] === q.correctIndex ? 1 : 0),
+      0
+    );
+    const erradas = questions
+      .filter((q, i) => answers[i] !== q.correctIndex)
+      .map((q) => q.question);
+    const registro = {
+      score: acertos,
+      total: questions.length,
+      date: new Date().toISOString(),
+    };
+    setUltimo(registro);
+    fetch("/api/assistente/quiz/resultados", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ courseId, lessonId, ...registro, erradas }),
+    }).catch(() => {});
+  }
 
   const generate = async () => {
     setLoading(true);
@@ -52,7 +85,21 @@ export function QuizPanel({
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Quiz gerado por IA</h2>
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h2 className="text-lg font-semibold">Quiz gerado por IA</h2>
+          {ultimo && (
+            <span
+              className="text-[11.5px] text-[var(--color-muted)]"
+              style={{ fontFamily: "var(--font-mono)" }}
+            >
+              último: {ultimo.score}/{ultimo.total} ·{" "}
+              {new Date(ultimo.date).toLocaleDateString("pt-BR", {
+                day: "2-digit",
+                month: "2-digit",
+              })}
+            </span>
+          )}
+        </div>
         <button
           type="button"
           onClick={generate}
@@ -106,7 +153,7 @@ export function QuizPanel({
           {!submitted ? (
             <button
               type="button"
-              onClick={() => setSubmitted(true)}
+              onClick={corrigir}
               disabled={Object.keys(answers).length < questions.length}
               className="self-start rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-[var(--rich-black)] transition disabled:opacity-50"
             >
@@ -114,7 +161,7 @@ export function QuizPanel({
             </button>
           ) : (
             <p className="text-sm opacity-80">
-              Você acertou {score} de {questions.length}.
+              Você acertou {score} de {questions.length}. Resultado registrado.
             </p>
           )}
         </div>

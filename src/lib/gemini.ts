@@ -30,6 +30,9 @@ async function generateContent(
           : {}),
         ...(generationConfig ? { generationConfig } : {}),
       }),
+      // Chamada pendurada não pode travar quem chamou — o worker da agenda,
+      // por exemplo, ficaria com a fila presa até o container reiniciar.
+      signal: AbortSignal.timeout(90_000),
     }
   );
 
@@ -46,12 +49,33 @@ async function generateContent(
   return text;
 }
 
-export async function chatWithTutor(
-  history: ChatMessage[],
-  message: string,
-  courseContext?: string
-): Promise<string> {
-  const systemInstruction = [
+/**
+ * Traduz um erro do Gemini em status HTTP + mensagem honesta pro usuário —
+ * "tente novamente" quando a cota diária acabou é mentira que frustra.
+ */
+export function mapearErroGemini(err: unknown): { status: number; mensagem: string } {
+  const texto = err instanceof Error ? err.message : String(err);
+  if (texto.includes("(429)")) {
+    return {
+      status: 429,
+      mensagem:
+        "A cota diária gratuita de IA esgotou. Ela volta de madrugada (~4h) — tentar de novo agora não adianta.",
+    };
+  }
+  if (/\((500|502|503|504)\)/.test(texto)) {
+    return {
+      status: 503,
+      mensagem: "A IA está sobrecarregada neste momento. Tenta de novo em um minuto.",
+    };
+  }
+  return {
+    status: 502,
+    mensagem: "Não foi possível gerar resposta agora. Tente novamente em instantes.",
+  };
+}
+
+function tutorSystemInstruction(courseContext?: string): string {
+  return [
     "Você é um tutor especialista, com profundidade real nos assuntos que ensina (lógica de programação, estruturas de dados e fundamentos de IA), não um chatbot genérico de respostas superficiais.",
     "O aluno já tem uma base sólida em lógica de programação e estruturas de dados — não repita conceitos básicos dessa área sem necessidade. Em compensação, trate tecnologias web e infraestrutura como território mais novo pra ele: conecte conceitos novos a analogias com lógica/algoritmos que ele já domina sempre que ajudar a fixar o assunto.",
     "Ensine de forma estruturada: quando o tópico for amplo, quebre em passos ou etapas antes de aprofundar, e verifique o entendimento fazendo uma pergunta de verificação ocasional (não em toda resposta) em vez de só despejar informação.",
@@ -62,13 +86,96 @@ export async function chatWithTutor(
   ]
     .filter(Boolean)
     .join(" ");
+}
 
-  const contents = [
+function tutorContents(history: ChatMessage[], message: string) {
+  return [
     ...history.map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
     { role: "user", parts: [{ text: message }] },
   ];
+}
 
-  return generateContent(contents, systemInstruction);
+export async function chatWithTutor(
+  history: ChatMessage[],
+  message: string,
+  courseContext?: string
+): Promise<string> {
+  return generateContent(
+    tutorContents(history, message),
+    tutorSystemInstruction(courseContext)
+  );
+}
+
+/**
+ * Versão streaming do tutor: rende os pedaços de texto conforme o Gemini os
+ * produz (endpoint streamGenerateContent com SSE). Erros ANTES do primeiro
+ * pedaço lançam normalmente; depois disso o que já saiu fica valendo.
+ */
+export async function* chatWithTutorStream(
+  history: ChatMessage[],
+  message: string,
+  courseContext?: string
+): AsyncGenerator<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY não configurada no servidor.");
+
+  // Aborta se os CABEÇALHOS não chegarem logo; depois disso o stream corre
+  // livre (um timeout no fetch inteiro mataria a resposta no meio).
+  const controle = new AbortController();
+  const timer = setTimeout(() => controle.abort(), 30_000);
+
+  let res: Response;
+  try {
+    res = await fetch(
+      `${GEMINI_API_URL}/${GEMINI_MODEL}:streamGenerateContent?alt=sse&key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: tutorContents(history, message),
+          systemInstruction: {
+            parts: [{ text: tutorSystemInstruction(courseContext) }],
+          },
+        }),
+        signal: controle.signal,
+      }
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!res.ok || !res.body) {
+    const errText = await res.text();
+    throw new Error(`Gemini API error (${res.status}): ${errText}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE: eventos separados por linha em branco; cada um traz "data: {json}".
+    const eventos = buffer.split("\n\n");
+    buffer = eventos.pop() ?? "";
+    for (const evento of eventos) {
+      for (const linha of evento.split("\n")) {
+        if (!linha.startsWith("data:")) continue;
+        const payload = linha.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        try {
+          const data = JSON.parse(payload);
+          const texto = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (typeof texto === "string" && texto) yield texto;
+        } catch {
+          // pedaço malformado: ignora e segue o fluxo
+        }
+      }
+    }
+  }
 }
 
 /**

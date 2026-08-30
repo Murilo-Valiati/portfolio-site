@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proposeCourseFromChat, ChatMessage } from "@/lib/gemini";
+import { proposeCourseFromChat, mapearErroGemini, ChatMessage } from "@/lib/gemini";
 import { addCustomCourse, getAllCategories } from "@/lib/lms";
 
 export async function POST(req: NextRequest) {
@@ -22,10 +22,8 @@ export async function POST(req: NextRequest) {
       proposal.category
     );
     return NextResponse.json({ course });
-  } catch {
-    return NextResponse.json(
-      { error: "Não foi possível criar o curso agora. Tente novamente em instantes." },
-      { status: 502 }
-    );
+  } catch (err) {
+    const { status, mensagem } = mapearErroGemini(err);
+    return NextResponse.json({ error: mensagem }, { status });
   }
 }

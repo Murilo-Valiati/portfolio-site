@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   verifySessionToken,
   SESSION_COOKIE_NAME,
-  LMS_SESSION_COOKIE,
   DAILY_LOG_PATH,
 } from "@/lib/session";
 
@@ -35,17 +34,9 @@ export async function proxy(req: NextRequest) {
     }
   }
 
-  const res = NextResponse.next();
-  if (isAssistenteRoute && !req.cookies.get(LMS_SESSION_COOKIE)) {
-    res.cookies.set(LMS_SESSION_COOKIE, crypto.randomUUID(), {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: true,
-      maxAge: 60 * 60 * 24 * 365,
-      path: "/",
-    });
-  }
-  return res;
+  // O cookie anônimo do assistente foi aposentado: progresso e chat agora
+  // pertencem à identidade fixa do dono (auditoria de 30/08).
+  return NextResponse.next();
 }
 
 export const config = {

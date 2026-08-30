@@ -2,8 +2,6 @@ import { SignJWT, jwtVerify } from "jose";
 
 const SESSION_COOKIE = "admin_session";
 
-/** Cookie anônimo do assistente (progresso e histórico de chat do LMS). */
-export const LMS_SESSION_COOKIE = "lms_session";
 export const DAILY_LOG_PATH = "/log-5bda56349c8d";
 
 const secret = () => {

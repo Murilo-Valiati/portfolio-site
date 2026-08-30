@@ -44,6 +44,22 @@ substitui a antiga automação externa (Claude Cowork + Reclaim + Toki):
   `/processar`) continuam intactos DE PROPÓSITO durante a transição. Não
   remover sem confirmar que a automação externa foi desligada.
 
+# Assistente de IA (reforma da auditoria 2026-08-30)
+
+- lms.ts e chat-history.ts agora usam o json-store (lock + atômico) e uma
+  IDENTIDADE FIXA ("aluno") — o cookie anônimo lms_session foi aposentado
+  (proxy não o emite mais); a primeira leitura migra e funde os dados das
+  sessões antigas automaticamente.
+- Chat do tutor: servidor é a única fonte do histórico; só as últimas 12
+  mensagens vão pro Gemini; resposta é STREAMING (streamGenerateContent/SSE →
+  text/plain); DELETE ?threadKey= limpa a thread; erros usam mapearErroGemini
+  (429 = cota diária, mensagem honesta).
+- Quiz: resultados persistidos em lms-quiz-results.json (últimas 20 tentativas
+  por lição) via /api/assistente/quiz/resultados; página do curso mostra o
+  desempenho; a rota do quiz usa getLessonWithCustom (lição personalizada com
+  conteúdo também tem quiz).
+- Lição personalizada tem editor de conteúdo (PATCH /api/assistente/lessons).
+
 # Endurecimento (auditoria 2026-08-30)
 
 - `src/proxy.ts` substitui o middleware deprecado do Next 16 (mesma lógica);

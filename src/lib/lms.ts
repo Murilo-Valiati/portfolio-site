@@ -1,5 +1,5 @@
-import { promises as fs } from "fs";
 import path from "path";
+import { readJson, withLock, writeJsonAtomic } from "@/lib/json-store";
 
 export interface Lesson {
   id: string;
@@ -160,11 +160,14 @@ export function countLessons(course: Course): number {
   return course.modules.reduce((sum, m) => sum + m.lessons.length, 0);
 }
 
-const DATA_DIR = process.env.CONTENT_DATA_DIR || path.join(process.cwd(), ".data");
+/*
+ * Persistência: tudo via json-store (lock + rename atômico), como o resto do
+ * site. Progresso, quiz e chat pertencem a uma identidade fixa — há um único
+ * aluno, o dono do site, já autenticado pelo painel. (Auditoria de 30/08.)
+ */
 
-async function ensureDataDir() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-}
+const ALUNO = "aluno";
+const DATA_DIR = process.env.CONTENT_DATA_DIR || path.join(process.cwd(), ".data");
 
 // --- Módulos e lições personalizados (adicionados pelo usuário) ---
 
@@ -175,17 +178,7 @@ interface CustomModulesStore {
 const CUSTOM_MODULES_FILE = path.join(DATA_DIR, "lms-custom-modules.json");
 
 async function readCustomModulesStore(): Promise<CustomModulesStore> {
-  try {
-    const raw = await fs.readFile(CUSTOM_MODULES_FILE, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
-}
-
-async function writeCustomModulesStore(store: CustomModulesStore): Promise<void> {
-  await ensureDataDir();
-  await fs.writeFile(CUSTOM_MODULES_FILE, JSON.stringify(store, null, 2));
+  return readJson<CustomModulesStore>(CUSTOM_MODULES_FILE, {});
 }
 
 export async function getCustomModules(courseId: string): Promise<Module[]> {
@@ -197,25 +190,29 @@ export async function addCustomModule(
   courseId: string,
   title: string
 ): Promise<Module[]> {
-  const store = await readCustomModulesStore();
-  if (!store[courseId]) store[courseId] = [];
-  store[courseId].push({
-    id: `custom-modulo-${Date.now()}`,
-    title,
-    lessons: [],
+  return withLock(CUSTOM_MODULES_FILE, async () => {
+    const store = await readCustomModulesStore();
+    if (!store[courseId]) store[courseId] = [];
+    store[courseId].push({
+      id: `custom-modulo-${Date.now()}`,
+      title,
+      lessons: [],
+    });
+    await writeJsonAtomic(CUSTOM_MODULES_FILE, store);
+    return store[courseId];
   });
-  await writeCustomModulesStore(store);
-  return store[courseId];
 }
 
 export async function removeCustomModule(
   courseId: string,
   moduleId: string
 ): Promise<Module[]> {
-  const store = await readCustomModulesStore();
-  store[courseId] = (store[courseId] ?? []).filter((m) => m.id !== moduleId);
-  await writeCustomModulesStore(store);
-  return store[courseId];
+  return withLock(CUSTOM_MODULES_FILE, async () => {
+    const store = await readCustomModulesStore();
+    store[courseId] = (store[courseId] ?? []).filter((m) => m.id !== moduleId);
+    await writeJsonAtomic(CUSTOM_MODULES_FILE, store);
+    return store[courseId];
+  });
 }
 
 export async function addCustomLesson(
@@ -223,17 +220,39 @@ export async function addCustomLesson(
   moduleId: string,
   title: string
 ): Promise<Module[]> {
-  const store = await readCustomModulesStore();
-  const mod = (store[courseId] ?? []).find((m) => m.id === moduleId);
-  if (mod) {
-    mod.lessons.push({
-      id: `custom-licao-${Date.now()}`,
-      title,
-      content: "",
-    });
-    await writeCustomModulesStore(store);
-  }
-  return store[courseId] ?? [];
+  return withLock(CUSTOM_MODULES_FILE, async () => {
+    const store = await readCustomModulesStore();
+    const mod = (store[courseId] ?? []).find((m) => m.id === moduleId);
+    if (mod) {
+      mod.lessons.push({
+        id: `custom-licao-${Date.now()}`,
+        title,
+        content: "",
+      });
+      await writeJsonAtomic(CUSTOM_MODULES_FILE, store);
+    }
+    return store[courseId] ?? [];
+  });
+}
+
+/** Preenche (ou reescreve) o texto de uma lição personalizada. */
+export async function updateCustomLessonContent(
+  courseId: string,
+  lessonId: string,
+  content: string
+): Promise<Lesson | null> {
+  return withLock(CUSTOM_MODULES_FILE, async () => {
+    const store = await readCustomModulesStore();
+    for (const mod of store[courseId] ?? []) {
+      const lesson = mod.lessons.find((l) => l.id === lessonId);
+      if (lesson) {
+        lesson.content = content;
+        await writeJsonAtomic(CUSTOM_MODULES_FILE, store);
+        return lesson;
+      }
+    }
+    return null;
+  });
 }
 
 export async function getCourseWithCustomModules(
@@ -267,17 +286,7 @@ export async function getLessonWithCustom(
 const CUSTOM_COURSES_FILE = path.join(DATA_DIR, "lms-custom-courses.json");
 
 async function readCustomCourses(): Promise<Course[]> {
-  try {
-    const raw = await fs.readFile(CUSTOM_COURSES_FILE, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-async function writeCustomCourses(courses: Course[]): Promise<void> {
-  await ensureDataDir();
-  await fs.writeFile(CUSTOM_COURSES_FILE, JSON.stringify(courses, null, 2));
+  return readJson<Course[]>(CUSTOM_COURSES_FILE, []);
 }
 
 export async function getCustomCourses(): Promise<Course[]> {
@@ -308,7 +317,7 @@ function slugify(text: string): string {
   return text
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 }
@@ -318,38 +327,57 @@ export async function addCustomCourse(
   description: string,
   category: string
 ): Promise<Course> {
-  const courses = await readCustomCourses();
-  const base = slugify(title) || "curso";
-  let id = base;
-  let n = 1;
-  const existingIds = new Set([...COURSES.map((c) => c.id), ...courses.map((c) => c.id)]);
-  while (existingIds.has(id)) {
-    id = `${base}-${++n}`;
-  }
-  const course: Course = { id, title, description, category, modules: [] };
-  courses.push(course);
-  await writeCustomCourses(courses);
-  return course;
+  return withLock(CUSTOM_COURSES_FILE, async () => {
+    const courses = await readCustomCourses();
+    const base = slugify(title) || "curso";
+    let id = base;
+    let n = 1;
+    const existingIds = new Set([...COURSES.map((c) => c.id), ...courses.map((c) => c.id)]);
+    while (existingIds.has(id)) {
+      id = `${base}-${++n}`;
+    }
+    const course: Course = { id, title, description, category, modules: [] };
+    courses.push(course);
+    await writeJsonAtomic(CUSTOM_COURSES_FILE, courses);
+    return course;
+  });
 }
 
 export async function removeCustomCourse(courseId: string): Promise<void> {
-  const courses = await readCustomCourses();
-  await writeCustomCourses(courses.filter((c) => c.id !== courseId));
+  await withLock(CUSTOM_COURSES_FILE, async () => {
+    const courses = await readCustomCourses();
+    await writeJsonAtomic(
+      CUSTOM_COURSES_FILE,
+      courses.filter((c) => c.id !== courseId)
+    );
+  });
 
-  // Limpa módulos, progresso e histórico de chat associados a esse curso.
-  const modulesStore = await readCustomModulesStore();
-  delete modulesStore[courseId];
-  await writeCustomModulesStore(modulesStore);
+  // Limpa módulos, progresso e resultados de quiz associados ao curso.
+  await withLock(CUSTOM_MODULES_FILE, async () => {
+    const modulesStore = await readCustomModulesStore();
+    delete modulesStore[courseId];
+    await writeJsonAtomic(CUSTOM_MODULES_FILE, modulesStore);
+  });
 
-  const progressStore = await readStore();
-  for (const sessionId of Object.keys(progressStore)) {
-    delete progressStore[sessionId][courseId];
-  }
-  await writeStore(progressStore);
+  await withLock(PROGRESS_FILE, async () => {
+    const progressStore = await lerProgresso();
+    for (const chave of Object.keys(progressStore)) {
+      delete progressStore[chave][courseId];
+    }
+    await writeJsonAtomic(PROGRESS_FILE, progressStore);
+  });
+
+  await withLock(QUIZ_RESULTS_FILE, async () => {
+    const quizStore = await readJson<QuizResultsStore>(QUIZ_RESULTS_FILE, {});
+    delete quizStore[courseId];
+    await writeJsonAtomic(QUIZ_RESULTS_FILE, quizStore);
+  });
 }
 
+// --- Progresso ---
+
 interface ProgressStore {
-  [sessionId: string]: {
+  [key: string]: {
     [courseId: string]: {
       completedLessons: string[];
     };
@@ -358,58 +386,103 @@ interface ProgressStore {
 
 const PROGRESS_FILE = path.join(DATA_DIR, "lms-progress.json");
 
-async function readStore(): Promise<ProgressStore> {
-  try {
-    const raw = await fs.readFile(PROGRESS_FILE, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return {};
+/** Funde as sessões anônimas antigas na identidade fixa. Idempotente. */
+async function lerProgresso(): Promise<ProgressStore> {
+  const bruto = await readJson<ProgressStore>(PROGRESS_FILE, {});
+  const antigas = Object.keys(bruto).filter((k) => k !== ALUNO);
+  if (antigas.length === 0) return bruto;
+
+  const destino = bruto[ALUNO] ?? {};
+  for (const chave of antigas) {
+    for (const [courseId, dados] of Object.entries(bruto[chave])) {
+      const lista = destino[courseId]?.completedLessons ?? [];
+      destino[courseId] = {
+        completedLessons: Array.from(new Set([...lista, ...dados.completedLessons])),
+      };
+    }
   }
+  const migrado: ProgressStore = { [ALUNO]: destino };
+  await writeJsonAtomic(PROGRESS_FILE, migrado);
+  return migrado;
 }
 
-async function writeStore(store: ProgressStore): Promise<void> {
-  await ensureDataDir();
-  await fs.writeFile(PROGRESS_FILE, JSON.stringify(store, null, 2));
+export async function getProgress(courseId: string): Promise<string[]> {
+  const store = await lerProgresso();
+  return store[ALUNO]?.[courseId]?.completedLessons ?? [];
 }
 
-export async function getProgress(
-  sessionId: string,
-  courseId: string
-): Promise<string[]> {
-  const store = await readStore();
-  return store[sessionId]?.[courseId]?.completedLessons ?? [];
-}
-
-export async function getAllProgress(
-  sessionId: string
-): Promise<Record<string, string[]>> {
-  const store = await readStore();
-  const sessionData = store[sessionId] ?? {};
+export async function getAllProgress(): Promise<Record<string, string[]>> {
+  const store = await lerProgresso();
+  const dados = store[ALUNO] ?? {};
   const result: Record<string, string[]> = {};
-  for (const courseId of Object.keys(sessionData)) {
-    result[courseId] = sessionData[courseId].completedLessons;
+  for (const courseId of Object.keys(dados)) {
+    result[courseId] = dados[courseId].completedLessons;
   }
   return result;
 }
 
 export async function toggleLessonComplete(
-  sessionId: string,
   courseId: string,
   lessonId: string,
   completed: boolean
 ): Promise<string[]> {
-  const store = await readStore();
-  if (!store[sessionId]) store[sessionId] = {};
-  if (!store[sessionId][courseId]) {
-    store[sessionId][courseId] = { completedLessons: [] };
-  }
-  const list = store[sessionId][courseId].completedLessons;
-  const idx = list.indexOf(lessonId);
-  if (completed && idx === -1) {
-    list.push(lessonId);
-  } else if (!completed && idx !== -1) {
-    list.splice(idx, 1);
-  }
-  await writeStore(store);
-  return list;
+  return withLock(PROGRESS_FILE, async () => {
+    const store = await lerProgresso();
+    if (!store[ALUNO]) store[ALUNO] = {};
+    if (!store[ALUNO][courseId]) {
+      store[ALUNO][courseId] = { completedLessons: [] };
+    }
+    const list = store[ALUNO][courseId].completedLessons;
+    const idx = list.indexOf(lessonId);
+    if (completed && idx === -1) {
+      list.push(lessonId);
+    } else if (!completed && idx !== -1) {
+      list.splice(idx, 1);
+    }
+    await writeJsonAtomic(PROGRESS_FILE, store);
+    return list;
+  });
+}
+
+// --- Resultados de quiz ---
+
+export interface QuizAttempt {
+  date: string; // ISO
+  score: number;
+  total: number;
+  /** Enunciados das questões erradas, pra revisão. */
+  erradas: string[];
+}
+
+interface QuizResultsStore {
+  [courseId: string]: {
+    [lessonId: string]: QuizAttempt[];
+  };
+}
+
+const QUIZ_RESULTS_FILE = path.join(DATA_DIR, "lms-quiz-results.json");
+const MAX_TENTATIVAS_GUARDADAS = 20;
+
+export async function registerQuizResult(
+  courseId: string,
+  lessonId: string,
+  attempt: Omit<QuizAttempt, "date">
+): Promise<QuizAttempt> {
+  return withLock(QUIZ_RESULTS_FILE, async () => {
+    const store = await readJson<QuizResultsStore>(QUIZ_RESULTS_FILE, {});
+    if (!store[courseId]) store[courseId] = {};
+    const registro: QuizAttempt = { date: new Date().toISOString(), ...attempt };
+    const lista = store[courseId][lessonId] ?? [];
+    lista.push(registro);
+    store[courseId][lessonId] = lista.slice(-MAX_TENTATIVAS_GUARDADAS);
+    await writeJsonAtomic(QUIZ_RESULTS_FILE, store);
+    return registro;
+  });
+}
+
+export async function getQuizResults(
+  courseId: string
+): Promise<Record<string, QuizAttempt[]>> {
+  const store = await readJson<QuizResultsStore>(QUIZ_RESULTS_FILE, {});
+  return store[courseId] ?? {};
 }

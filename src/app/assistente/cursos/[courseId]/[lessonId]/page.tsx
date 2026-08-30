@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
-import { LMS_SESSION_COOKIE } from "@/lib/session";
-import { getLessonWithCustom, getProgress } from "@/lib/lms";
+import {
+  getLesson,
+  getLessonWithCustom,
+  getProgress,
+  getQuizResults,
+} from "@/lib/lms";
 import { LessonProgressToggle } from "@/components/assistente/lesson-progress-toggle";
 import { QuizPanel } from "@/components/assistente/quiz-panel";
 import { ChatWidget } from "@/components/assistente/chat-widget";
+import { LessonContentEditor } from "@/components/assistente/lesson-content-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +23,13 @@ export default async function LessonPage({
   if (!found) notFound();
   const { course, lesson } = found;
   const hasContent = lesson.content.trim().length > 0;
+  const isCustomLesson = !getLesson(courseId, lessonId);
 
-  const sessionId = (await cookies()).get(LMS_SESSION_COOKIE)?.value;
-  const completed = sessionId ? await getProgress(sessionId, courseId) : [];
+  const completed = await getProgress(courseId);
   const isDone = completed.includes(lessonId);
+
+  const resultados = (await getQuizResults(courseId))[lessonId] ?? [];
+  const ultimo = resultados[resultados.length - 1] ?? null;
 
   return (
     <>
@@ -46,17 +53,31 @@ export default async function LessonPage({
       </div>
 
       {hasContent ? (
-        <article className="rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-[26px_28px] text-[15px] leading-[1.75] opacity-[.92]">
+        <article className="whitespace-pre-wrap rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-[26px_28px] text-[15px] leading-[1.75] opacity-[.92]">
           {lesson.content}
         </article>
       ) : (
         <p className="rounded-[14px] border border-dashed border-[var(--color-border)] p-[26px_28px] text-[14.5px] opacity-70">
-          Lição personalizada, sem conteúdo cadastrado — use o chat abaixo pra
-          estudar o assunto e marque como concluída quando terminar.
+          Lição personalizada, ainda sem conteúdo. Escreva o material abaixo pra
+          liberar o quiz — ou use o chat pra estudar o assunto.
         </p>
       )}
 
-      {hasContent && <QuizPanel courseId={course.id} lessonId={lesson.id} />}
+      {isCustomLesson && (
+        <LessonContentEditor
+          courseId={course.id}
+          lessonId={lesson.id}
+          initialContent={lesson.content}
+        />
+      )}
+
+      {hasContent && (
+        <QuizPanel
+          courseId={course.id}
+          lessonId={lesson.id}
+          ultimoInicial={ultimo}
+        />
+      )}
 
       <ChatWidget
         courseContext={`Curso: ${course.title} / Lição: ${lesson.title}`}

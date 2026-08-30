@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { LMS_SESSION_COOKIE } from "@/lib/session";
 import { getAllProgress, toggleLessonComplete, findAnyCourse } from "@/lib/lms";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
-  const sessionId = (await cookies()).get(LMS_SESSION_COOKIE)?.value;
-  if (!sessionId) {
-    return NextResponse.json({ progress: {} });
-  }
-  const progress = await getAllProgress(sessionId);
+  const progress = await getAllProgress();
   return NextResponse.json({ progress });
 }
 
 export async function POST(req: NextRequest) {
-  const sessionId = (await cookies()).get(LMS_SESSION_COOKIE)?.value;
-  if (!sessionId) {
-    return NextResponse.json({ error: "Sessão não encontrada." }, { status: 400 });
-  }
-
   const body = await req.json().catch(() => null);
   const { courseId, lessonId, completed } = body ?? {};
 
@@ -30,11 +21,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 
-  const completedLessons = await toggleLessonComplete(
-    sessionId,
-    courseId,
-    lessonId,
-    completed
-  );
+  const completedLessons = await toggleLessonComplete(courseId, lessonId, completed);
   return NextResponse.json({ completedLessons });
 }

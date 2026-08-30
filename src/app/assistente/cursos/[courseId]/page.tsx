@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
-import { LMS_SESSION_COOKIE } from "@/lib/session";
-import { findAnyCourse, getCustomModules, getProgress, isCustomCourseId } from "@/lib/lms";
+import {
+  findAnyCourse,
+  getCustomModules,
+  getProgress,
+  getQuizResults,
+  isCustomCourseId,
+} from "@/lib/lms";
 import { CourseModules } from "@/components/assistente/course-modules";
 import { ChatWidget } from "@/components/assistente/chat-widget";
 import { DeleteCourseButton } from "@/components/assistente/delete-course-button";
@@ -18,9 +22,21 @@ export default async function CoursePage({
   const course = await findAnyCourse(courseId);
   if (!course) notFound();
 
-  const sessionId = (await cookies()).get(LMS_SESSION_COOKIE)?.value;
-  const completed = sessionId ? await getProgress(sessionId, courseId) : [];
+  const completed = await getProgress(courseId);
   const customModules = await getCustomModules(courseId);
+
+  // Desempenho nos quizzes, pra revisão: última nota por lição.
+  const resultados = await getQuizResults(courseId);
+  const todasLicoes = [...course.modules, ...customModules].flatMap((m) => m.lessons);
+  const desempenho = todasLicoes
+    .map((l) => {
+      const tentativas = resultados[l.id] ?? [];
+      const ultima = tentativas[tentativas.length - 1];
+      return ultima
+        ? { titulo: l.title, ultima, tentativas: tentativas.length }
+        : null;
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
 
   return (
     <>
@@ -45,6 +61,33 @@ export default async function CoursePage({
         initialCustomModules={customModules}
         completedLessons={completed}
       />
+
+      {desempenho.length > 0 && (
+        <section className="flex flex-col gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+          <h2 className="text-lg font-semibold">Desempenho nos quizzes</h2>
+          <ul className="flex flex-col gap-2">
+            {desempenho.map((d) => (
+              <li
+                key={d.titulo}
+                className="flex flex-wrap items-baseline justify-between gap-2 text-[14px]"
+              >
+                <span>{d.titulo}</span>
+                <span
+                  className="text-[12px] text-[var(--color-muted)]"
+                  style={{ fontFamily: "var(--font-mono)" }}
+                >
+                  {d.ultima.score}/{d.ultima.total} ·{" "}
+                  {new Date(d.ultima.date).toLocaleDateString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                  })}{" "}
+                  · {d.tentativas} {d.tentativas > 1 ? "tentativas" : "tentativa"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <ChatWidget
         courseContext={`Curso: ${course.title} — ${course.description}`}
