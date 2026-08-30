@@ -57,9 +57,17 @@ export default function AdminHubPage() {
     <main className="min-h-full flex-1 bg-[var(--color-background)] px-6 py-10 text-[var(--color-foreground)]">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         <div className="flex items-center justify-between">
-          <h1 className="font-[family-name:var(--font-display)] text-[28px] font-semibold">
-            Painel do usuário
-          </h1>
+          <div>
+            <a
+              href="/"
+              className="text-sm opacity-70 transition hover:text-[var(--color-accent)] hover:opacity-100"
+            >
+              ← Portfólio
+            </a>
+            <h1 className="mt-1 font-[family-name:var(--font-display)] text-[28px] font-semibold">
+              Painel do usuário
+            </h1>
+          </div>
           <button onClick={handleLogout} className={removeBtnClass}>
             Sair
           </button>
