@@ -23,78 +23,6 @@ export interface Course {
 
 export const COURSES: Course[] = [
   {
-    id: "logica-de-programacao",
-    title: "Lógica de Programação",
-    category: "Tecnologia",
-    description:
-      "Fundamentos de algoritmos, variáveis, estruturas de controle e raciocínio lógico para programar.",
-    modules: [
-      {
-        id: "fundamentos",
-        title: "Fundamentos",
-        lessons: [
-          {
-            id: "o-que-e-algoritmo",
-            title: "O que é um algoritmo",
-            content:
-              "Um algoritmo é uma sequência finita e bem definida de passos para resolver um problema ou executar uma tarefa. Antes de escrever código, é útil descrever o algoritmo em português (pseudocódigo) para organizar o raciocínio: quais são as entradas, quais passos transformam essas entradas, e qual é a saída esperada.",
-          },
-          {
-            id: "variaveis-e-tipos",
-            title: "Variáveis e tipos de dados",
-            content:
-              "Variáveis são espaços nomeados na memória que guardam valores que podem mudar durante a execução do programa. Tipos comuns incluem números inteiros, números decimais, texto (strings) e valores booleanos (verdadeiro/falso). Escolher o tipo certo evita erros e deixa o código mais claro.",
-          },
-        ],
-      },
-      {
-        id: "estruturas-de-controle",
-        title: "Estruturas de Controle",
-        lessons: [
-          {
-            id: "condicionais",
-            title: "Condicionais (se/então)",
-            content:
-              "Estruturas condicionais permitem que o programa tome decisões: 'se uma condição for verdadeira, faça X; senão, faça Y'. São a base para criar comportamentos diferentes conforme os dados de entrada.",
-          },
-          {
-            id: "loops",
-            title: "Repetição (loops)",
-            content:
-              "Loops permitem repetir um bloco de instruções várias vezes, evitando duplicar código. Os dois tipos mais comuns são o loop com contador definido (for) e o loop condicional (while), que repete enquanto uma condição for verdadeira.",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    id: "estruturas-de-dados",
-    title: "Estruturas de Dados",
-    category: "Tecnologia",
-    description:
-      "Como organizar e acessar dados de forma eficiente: listas, pilhas, filas e mais.",
-    modules: [
-      {
-        id: "lineares",
-        title: "Estruturas Lineares",
-        lessons: [
-          {
-            id: "arrays-e-listas",
-            title: "Arrays e listas",
-            content:
-              "Arrays (vetores) guardam elementos em posições sequenciais de memória, permitindo acesso rápido por índice. Listas ligadas guardam elementos conectados por referências, com inserção/remoção mais eficiente em certos casos, mas acesso sequencial mais lento.",
-          },
-          {
-            id: "pilhas-e-filas",
-            title: "Pilhas e filas",
-            content:
-              "Uma pilha (stack) segue a lógica LIFO (último a entrar, primeiro a sair) — como uma pilha de pratos. Uma fila (queue) segue a lógica FIFO (primeiro a entrar, primeiro a sair) — como uma fila de banco.",
-          },
-        ],
-      },
-    ],
-  },
-  {
     id: "fundamentos-de-ia",
     title: "Fundamentos de Inteligência Artificial",
     category: "Tecnologia",
@@ -288,7 +216,10 @@ export async function getLessonWithCustom(
 const HIDDEN_COURSES_FILE = path.join(DATA_DIR, "lms-cursos-ocultos.json");
 
 export async function getCursosOcultos(): Promise<string[]> {
-  return readJson<string[]>(HIDDEN_COURSES_FILE, []);
+  const ocultos = await readJson<string[]>(HIDDEN_COURSES_FILE, []);
+  // Ids de cursos que saíram do catálogo não contam (senão o botão de
+  // restaurar oferece fantasmas).
+  return ocultos.filter((id) => COURSES.some((c) => c.id === id));
 }
 
 export async function ocultarCursoPadrao(courseId: string): Promise<void> {
