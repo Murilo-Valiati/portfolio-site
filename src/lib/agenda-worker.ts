@@ -50,8 +50,20 @@ export async function processarFila(): Promise<void> {
     );
     for (const nota of pendentes) {
       await processarNota(nota).catch(async (err) => {
-        const tentativas = (nota.tentativas || 0) + 1;
         const aviso = err instanceof Error ? err.message : String(err);
+
+        // Indisponibilidade transitória do provedor (cota do Gemini, 5xx do
+        // Google) não é culpa da nota: não queima tentativa, só espera o
+        // próximo ciclo do cron. O aviso aparece no painel mesmo assim.
+        if (/\((429|500|502|503|504)\)/.test(aviso)) {
+          await updateNote(nota.id, {
+            aviso: `Provedor indisponível agora — vou tentar de novo sozinho. (${aviso.slice(0, 140)})`,
+          });
+          console.warn(`[agenda-worker] nota ${nota.id} adiada:`, aviso);
+          return;
+        }
+
+        const tentativas = (nota.tentativas || 0) + 1;
         await updateNote(nota.id, {
           tentativas,
           aviso: `Falha técnica (tentativa ${tentativas}/${MAX_TENTATIVAS}): ${aviso}`,
