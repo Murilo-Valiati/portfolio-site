@@ -7,6 +7,12 @@ const removeBtnClass =
 
 const blocks = [
   {
+    href: "/admin/hoje",
+    title: "Hoje",
+    description:
+      "O dia numa tela só — agenda, notas esperando você e hábitos, com o ditado a um toque.",
+  },
+  {
     href: "/admin/conteudo",
     title: "Administrativo",
     description:

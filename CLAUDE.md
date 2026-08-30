@@ -29,6 +29,14 @@ substitui a antiga automação externa (Claude Cowork + Reclaim + Toki):
   reabrir = tentar de novo) e `erro` (3 falhas técnicas).
 - Bancada dev: `GET /api/notas/teste-interpretacao?texto=...&criadaEm=...`
   (404 em produção).
+- `src/lib/rotina.ts` — resumo matinal (7h, todo dia) e revisão semanal
+  (domingo 20h) via Pushover prioridade normal, com estado em
+  /data/rotina.json (1 envio/dia, sobrevive a reinício; primeira execução
+  semeia sem enviar). Disparo manual: `GET /api/rotina/testar?tipo=resumo|
+  revisao&key=NOTES_KEY` (fora de /api/admin de propósito — o middleware
+  exigiria sessão).
+- `/admin/hoje` — página do dia: agenda (Google), notas em atenção com
+  "tentar de novo", hábitos com toggle (API do tracker), botão de ditar.
 - Compatibilidade: os endpoints do Cowork (GET com `?key=`, mutação via GET em
   `/processar`) continuam intactos DE PROPÓSITO durante a transição. Não
   remover sem confirmar que a automação externa foi desligada.

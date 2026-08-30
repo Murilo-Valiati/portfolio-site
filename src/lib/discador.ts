@@ -1,6 +1,7 @@
 import path from "path";
 import { readJson, withLock, writeJsonAtomic } from "@/lib/json-store";
 import { getNotes } from "@/lib/notes";
+import { enviarPushover, pushoverConfigurado } from "@/lib/pushover";
 
 /**
  * Avisa você 15 minutos antes de eventos marcados com "me ligue".
@@ -38,10 +39,6 @@ interface Aviso {
 const DATA_DIR = process.env.CONTENT_DATA_DIR || path.join(process.cwd(), ".data");
 const LIGACOES_FILE = path.join(DATA_DIR, "ligacoes.json");
 
-function pushoverConfigurado(): boolean {
-  return Boolean(process.env.PUSHOVER_TOKEN && process.env.PUSHOVER_USER);
-}
-
 function twilioConfigurado(): boolean {
   return Boolean(
     process.env.TWILIO_ACCOUNT_SID &&
@@ -56,30 +53,16 @@ export function avisadorConfigurado(): boolean {
 }
 
 /**
- * priority 2 = emergência: repete (retry) a cada 30 s por até 10 min (expire)
- * até você tocar na notificação. O som "persistent" insiste igual despertador.
+ * Emergência: repete a cada 30 s por até 10 min até você tocar na
+ * notificação. O som "persistent" insiste igual despertador.
  */
 async function avisarPushover(titulo: string, horario: string): Promise<string> {
-  const res = await fetch("https://api.pushover.net/1/messages.json", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      token: process.env.PUSHOVER_TOKEN!,
-      user: process.env.PUSHOVER_USER!,
-      title: `⏰ ${titulo}`,
-      message: `às ${horario} — daqui a ${ANTECEDENCIA_MIN} minutos.`,
-      priority: "2",
-      retry: "30",
-      expire: "600",
-      sound: "persistent",
-    }),
+  return enviarPushover({
+    titulo: `⏰ ${titulo}`,
+    mensagem: `às ${horario} — daqui a ${ANTECEDENCIA_MIN} minutos.`,
+    prioridade: 2,
+    som: "persistent",
   });
-
-  if (!res.ok) {
-    throw new Error(`Pushover (${res.status}): ${await res.text()}`);
-  }
-  const data = await res.json();
-  return String(data.request || "");
 }
 
 function escaparXml(s: string): string {
