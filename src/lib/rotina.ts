@@ -110,7 +110,7 @@ function rotuloDia(dia: string): string {
 }
 
 /** "🌤 23–34°C · chuva 10%" via Open-Meteo (grátis, sem chave). */
-async function linhaDoClima(diaIndice = 0): Promise<string | null> {
+export async function linhaDoClima(diaIndice = 0): Promise<string | null> {
   try {
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${CLIMA_LAT}&longitude=${CLIMA_LON}` +

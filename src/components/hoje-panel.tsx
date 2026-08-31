@@ -8,6 +8,22 @@ export interface EventoDoDia {
   titulo: string;
   hora: string | null; // null = dia inteiro
   alarme: boolean;
+  /** Minutos até começar (só para o que ainda não começou). */
+  emMinutos: number | null;
+}
+
+export interface BootcampInfo {
+  feitas: number;
+  total: number;
+  proximaTitulo: string | null;
+  proximaHref: string;
+}
+
+function daquiA(min: number): string {
+  if (min < 60) return `em ${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `em ${h}h${String(m).padStart(2, "0")}` : `em ${h}h`;
 }
 
 export interface NotaAtencao {
@@ -40,17 +56,29 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
 export function HojePanel({
   rotulo,
   data,
+  saudacao,
+  clima,
+  sequencia,
   eventos,
+  amanha,
   atencao,
   pendentes,
   habitos,
+  bootcamp,
+  logHref,
 }: {
   rotulo: string;
   data: string;
+  saudacao: string;
+  clima: string | null;
+  sequencia: number;
   eventos: EventoDoDia[] | null;
+  amanha: string | null;
   atencao: NotaAtencao[];
   pendentes: number;
   habitos: HabitoDoDia[];
+  bootcamp: BootcampInfo | null;
+  logHref: string;
 }) {
   const router = useRouter();
   const [checks, setChecks] = useState<Record<string, boolean>>(
@@ -91,6 +119,23 @@ export function HojePanel({
           <h1 className="font-[family-name:var(--font-display)] text-[34px] font-semibold leading-[1.05] sm:text-[42px]">
             {rotulo}
           </h1>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 font-[family-name:var(--font-mono)] text-[12.5px]">
+            <span className="opacity-70">{saudacao}, Murilo</span>
+            {clima && (
+              <>
+                <span className="opacity-25">/</span>
+                <span className="opacity-70">{clima}</span>
+              </>
+            )}
+            {sequencia >= 2 && (
+              <>
+                <span className="opacity-25">/</span>
+                <span className="text-[var(--color-accent)]">
+                  🔥 âncora firme há {sequencia} dias
+                </span>
+              </>
+            )}
+          </div>
         </header>
 
         <Secao titulo="Agenda do dia">
@@ -102,23 +147,38 @@ export function HojePanel({
             <p className="text-[14px] opacity-45">Agenda livre. Dia seu.</p>
           ) : (
             <ul className="flex flex-col gap-2">
-              {eventos.map((ev) => (
-                <li
-                  key={ev.id}
-                  className="flex items-baseline gap-3 rounded-[12px] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3"
-                >
-                  <span className="font-[family-name:var(--font-mono)] text-[13px] text-[var(--color-accent)]">
-                    {ev.hora ?? "dia todo"}
-                  </span>
-                  <span className="text-[15px]">{ev.titulo}</span>
-                  {ev.alarme && (
-                    <span title="Alarme 15 min antes" className="ml-auto">
-                      🔔
+              {eventos.map((ev, i) => {
+                const proximo =
+                  ev.emMinutos !== null &&
+                  eventos.findIndex((e) => e.emMinutos !== null) === i;
+                return (
+                  <li
+                    key={ev.id}
+                    className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-[12px] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3"
+                  >
+                    <span className="font-[family-name:var(--font-mono)] text-[13px] text-[var(--color-accent)]">
+                      {ev.hora ?? "dia todo"}
                     </span>
-                  )}
-                </li>
-              ))}
+                    <span className="text-[15px]">{ev.titulo}</span>
+                    {proximo && (
+                      <span className="rounded-full border border-[var(--color-accent)]/50 px-2 py-0.5 font-[family-name:var(--font-mono)] text-[10.5px] text-[var(--color-accent)]">
+                        {daquiA(ev.emMinutos!)}
+                      </span>
+                    )}
+                    {ev.alarme && (
+                      <span title="Alarme antes do evento" className="ml-auto">
+                        🔔
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
+          )}
+          {amanha && (
+            <p className="pt-1 font-[family-name:var(--font-mono)] text-[11.5px] opacity-45">
+              {amanha}
+            </p>
           )}
         </Secao>
 
@@ -194,14 +254,52 @@ export function HojePanel({
           </Secao>
         )}
 
+        {bootcamp && (
+          <Secao titulo={`Bootcamp · TripleTen · ${bootcamp.feitas}/${bootcamp.total}`}>
+            <div className="flex flex-col gap-3 rounded-[12px] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--color-border)]">
+                <div
+                  className="h-full rounded-full transition-[width] duration-500"
+                  style={{
+                    width: `${bootcamp.total > 0 ? Math.round((bootcamp.feitas / bootcamp.total) * 100) : 0}%`,
+                    background:
+                      "linear-gradient(90deg, var(--color-accent), var(--color-accent-strong))",
+                  }}
+                />
+              </div>
+              {bootcamp.proximaTitulo ? (
+                <a
+                  href={bootcamp.proximaHref}
+                  className="text-[14.5px] text-[var(--color-accent)] hover:underline"
+                >
+                  Continuar: {bootcamp.proximaTitulo} →
+                </a>
+              ) : (
+                <p className="text-[14px] opacity-70">Trilha concluída. 🎓</p>
+              )}
+            </div>
+          </Secao>
+        )}
+
         <DitadoRapido aoEnfileirar={() => setTimeout(() => router.refresh(), 4000)} />
 
-        <a
-          href="/admin/notas"
-          className={`${mono} self-center opacity-45 hover:text-[var(--color-accent)] hover:opacity-100`}
+        <nav
+          aria-label="Atalhos"
+          className="grid grid-cols-2 gap-2 border-t border-[var(--color-border)] pt-5 sm:grid-cols-4"
         >
-          abrir notas ↗
-        </a>
+          <a href="/assistente" className={`${mono} rounded-[10px] border border-[var(--color-border)] px-3 py-2.5 text-center opacity-60 transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] hover:opacity-100`}>
+            Assistente
+          </a>
+          <a href="/admin/agenda" className={`${mono} rounded-[10px] border border-[var(--color-border)] px-3 py-2.5 text-center opacity-60 transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] hover:opacity-100`}>
+            Hábitos
+          </a>
+          <a href={logHref} className={`${mono} rounded-[10px] border border-[var(--color-border)] px-3 py-2.5 text-center opacity-60 transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] hover:opacity-100`}>
+            Log do Dia
+          </a>
+          <a href="/admin/notas" className={`${mono} rounded-[10px] border border-[var(--color-border)] px-3 py-2.5 text-center opacity-60 transition hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] hover:opacity-100`}>
+            Notas
+          </a>
+        </nav>
       </div>
     </main>
   );
