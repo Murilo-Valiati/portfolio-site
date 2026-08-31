@@ -233,7 +233,7 @@ export async function montarRevisaoSemanal(): Promise<{
   ).length;
 
   linhas.push(
-    `🎙️ ${daSemana.length} nota${daSemana.length === 1 ? "" : "s"} ditada${daSemana.length === 1 ? "" : "s"}, ${viraramEvento} viraram evento`
+    `🎙️ ${daSemana.length} nota${daSemana.length === 1 ? "" : "s"} ditada${daSemana.length === 1 ? "" : "s"}, ${viraramEvento} ${viraramEvento === 1 ? "virou" : "viraram"} evento`
   );
   if (emAtencao > 0) {
     linhas.push(`⚠ ${emAtencao} ainda esperando você — resolva ou apague`);
