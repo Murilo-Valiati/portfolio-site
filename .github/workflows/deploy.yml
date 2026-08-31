@@ -33,7 +33,12 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            set -e
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | sudo docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY }}
             cd /opt/app
             sudo docker compose pull
             sudo docker compose up -d
+            # A imagem substituída vira "dangling"; sem esta limpeza elas
+            # acumulam até lotar o disco (aconteceu em 31/08: o pull falhou
+            # por falta de espaço e o site ficou servindo o build antigo).
+            sudo docker image prune -f
