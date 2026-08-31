@@ -18,6 +18,11 @@ export interface Habit {
   recurring?: boolean;
   /** YYYY-MM-DD. Start day when recurring, the only day when not. */
   date?: string;
+  /**
+   * Dias da semana em que o hábito vale (0=domingo … 6=sábado).
+   * Ausente = todos os dias. "Não malho aos domingos" = [1,2,3,4,5,6].
+   */
+  dias?: number[];
 }
 
 export interface DayEntry {
@@ -76,7 +81,30 @@ export async function addHabit(
 export function isVisibleOn(habit: Habit, date: string): boolean {
   const recurring = habit.recurring !== false;
   if (!recurring) return habit.date === date;
-  return !habit.date || date >= habit.date;
+  if (habit.date && date < habit.date) return false;
+  if (habit.dias && habit.dias.length > 0) {
+    const diaSemana = new Date(`${date}T12:00:00Z`).getUTCDay();
+    if (!habit.dias.includes(diaSemana)) return false;
+  }
+  return true;
+}
+
+/** Define os dias da semana do hábito. null ou os 7 dias = todos. */
+export async function updateHabitDias(
+  id: string,
+  dias: number[] | null
+): Promise<Habit | null> {
+  return withLock(HABITS_FILE, async () => {
+    const habits = await readHabits();
+    const habit = habits.find((h) => h.id === id);
+    if (!habit) return null;
+
+    if (dias === null || dias.length >= 7) delete habit.dias;
+    else habit.dias = [...dias].sort((a, b) => a - b);
+
+    await writeHabits(habits);
+    return habit;
+  });
 }
 
 export async function renameHabit(
@@ -161,10 +189,16 @@ export async function calcularSequenciaAncora(): Promise<number> {
   let cursor = hoje;
   let count = 0;
   for (let i = 0; i < 365; i++) {
+    // Dia em que nenhuma âncora vale (ex.: domingo sem treino) não conta
+    // nem quebra a corrente — a sequência "pula" ele.
+    const visiveis = ancoras.filter((h) => isVisibleOn(h, cursor));
+    if (visiveis.length === 0) {
+      cursor = anterior(cursor);
+      continue;
+    }
+
     const checked = mapa.get(cursor);
-    const fechou =
-      !!checked &&
-      ancoras.every((h) => (isVisibleOn(h, cursor) ? checked.has(h.id) : true));
+    const fechou = !!checked && visiveis.every((h) => checked.has(h.id));
     if (!fechou) {
       if (cursor === hoje) {
         cursor = anterior(cursor);

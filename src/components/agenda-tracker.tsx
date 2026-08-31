@@ -65,7 +65,12 @@ function parseDateKey(key: string): Date {
  */
 function isVisibleOn(habit: Habit, date: string): boolean {
   if (habit.recurring === false) return habit.date === date;
-  return !habit.date || date >= habit.date;
+  if (habit.date && date < habit.date) return false;
+  if (habit.dias && habit.dias.length > 0) {
+    const diaSemana = new Date(`${date}T12:00:00Z`).getUTCDay();
+    if (!habit.dias.includes(diaSemana)) return false;
+  }
+  return true;
 }
 
 function lastNDates(n: number): string[] {
@@ -157,8 +162,16 @@ export function AgendaTracker() {
     const cursor = new Date();
     for (let i = 0; i < 365; i++) {
       const key = toDateKey(cursor);
+
+      // Dia sem âncora válida (ex.: domingo de folga) não conta nem quebra.
+      const visiveis = anchors.filter((h) => isVisibleOn(h, key));
+      if (visiveis.length === 0) {
+        cursor.setDate(cursor.getDate() - 1);
+        continue;
+      }
+
       const dayChecked = dayMap.get(key);
-      const held = !!dayChecked && anchors.every((h) => dayChecked.has(h.id));
+      const held = !!dayChecked && visiveis.every((h) => dayChecked.has(h.id));
       if (!held) {
         if (key === todayKey) {
           cursor.setDate(cursor.getDate() - 1);
@@ -217,6 +230,20 @@ export function AgendaTracker() {
     });
   }
 
+  async function setHabitDias(id: string, dias: number[] | null) {
+    setHabits((p) =>
+      p.map((h) =>
+        h.id === id ? { ...h, dias: dias === null ? undefined : dias } : h
+      )
+    );
+
+    await fetch("/api/admin/agenda/habits", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, dias }),
+    });
+  }
+
   async function removeHabit(id: string) {
     setHabits((p) => p.filter((h) => h.id !== id));
     await fetch(`/api/admin/agenda/habits?id=${id}`, { method: "DELETE" });
@@ -257,6 +284,7 @@ export function AgendaTracker() {
           onToggle={toggle}
           onRename={renameHabit}
           onRemove={removeHabit}
+          onDias={setHabitDias}
           canEdit={true}
         />
 
@@ -271,6 +299,7 @@ export function AgendaTracker() {
             onToggle={toggle}
             onRename={renameHabit}
             onRemove={removeHabit}
+            onDias={setHabitDias}
             canEdit={true}
           />
           <HabitColumn
@@ -283,6 +312,7 @@ export function AgendaTracker() {
             onToggle={toggle}
             onRename={renameHabit}
             onRemove={removeHabit}
+            onDias={setHabitDias}
             canEdit={true}
           />
         </div>
@@ -297,7 +327,7 @@ export function AgendaTracker() {
           viewMonth={viewMonth}
           setViewMonth={setViewMonth}
           dayMap={dayMap}
-          habitCount={habits.length}
+          habits={habits}
           selectedDate={selectedDate}
           onSelect={setSelectedDate}
           todayKey={todayKey}
@@ -496,12 +526,64 @@ function Mark({
   );
 }
 
+const DIA_LETRA = ["D", "S", "T", "Q", "Q", "S", "S"];
+
+/** Sete letrinhas clicáveis: em quais dias da semana o hábito vale. */
+function DiasPicker({
+  habit,
+  onDias,
+}: {
+  habit: Habit;
+  onDias: (id: string, dias: number[] | null) => void;
+}) {
+  const ativos = new Set(habit.dias ?? [0, 1, 2, 3, 4, 5, 6]);
+
+  function alternar(dia: number) {
+    const proximos = new Set(ativos);
+    if (proximos.has(dia)) {
+      if (proximos.size === 1) return; // pelo menos 1 dia
+      proximos.delete(dia);
+    } else {
+      proximos.add(dia);
+    }
+    onDias(
+      habit.id,
+      proximos.size === 7 ? null : [...proximos].sort((a, b) => a - b)
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 pl-10 pt-1" role="group" aria-label={`Dias da semana de ${habit.name}`}>
+      {DIA_LETRA.map((letra, dia) => {
+        const ativo = ativos.has(dia);
+        return (
+          <button
+            key={dia}
+            type="button"
+            onClick={() => alternar(dia)}
+            aria-pressed={ativo}
+            aria-label={`${WEEKDAY_ABBR[dia]} ${ativo ? "ativo" : "inativo"}`}
+            className={`flex h-7 w-7 items-center justify-center rounded-full border font-[family-name:var(--font-mono)] text-[11px] transition-colors ${
+              ativo
+                ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-background)]"
+                : "border-[var(--color-border)] opacity-45 hover:opacity-100"
+            }`}
+          >
+            {letra}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function HabitRow({
   habit,
   on,
   onToggle,
   onRename,
   onRemove,
+  onDias,
   canEdit,
   large,
 }: {
@@ -510,11 +592,13 @@ function HabitRow({
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
+  onDias: (id: string, dias: number[] | null) => void;
   canEdit: boolean;
   large?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const [editingDias, setEditingDias] = useState(false);
   const [value, setValue] = useState(habit.name);
 
   function commit() {
@@ -552,6 +636,7 @@ function HabitRow({
   }
 
   return (
+    <div className="flex flex-col">
     <div className="group flex items-center gap-3">
       <button
         onClick={() => onToggle(habit.id)}
@@ -569,6 +654,14 @@ function HabitRow({
         {habit.recurring === false && (
           <span className="shrink-0 rounded-full border border-[var(--color-border)] px-2 py-0.5 font-[family-name:var(--font-mono)] text-[9.5px] uppercase tracking-wider opacity-50">
             só neste dia
+          </span>
+        )}
+        {habit.recurring !== false && habit.dias && habit.dias.length > 0 && (
+          <span
+            title="Dias da semana em que este hábito vale"
+            className="shrink-0 rounded-full border border-[var(--color-border)] px-2 py-0.5 font-[family-name:var(--font-mono)] text-[9.5px] tracking-[0.2em] opacity-50"
+          >
+            {habit.dias.map((d) => DIA_LETRA[d]).join("")}
           </span>
         )}
       </button>
@@ -598,6 +691,19 @@ function HabitRow({
             </>
           ) : (
             <>
+              {habit.recurring !== false && (
+                <button
+                  onClick={() => setEditingDias((v) => !v)}
+                  className={`font-[family-name:var(--font-mono)] text-[10.5px] uppercase tracking-wider transition-opacity hover:underline focus-visible:opacity-100 ${
+                    editingDias
+                      ? "text-[var(--color-accent)] opacity-100"
+                      : "opacity-45 hover:opacity-100"
+                  }`}
+                  aria-label={`Escolher dias da semana de ${habit.name}`}
+                >
+                  dias
+                </button>
+              )}
               <button
                 onClick={() => {
                   setValue(habit.name);
@@ -619,6 +725,9 @@ function HabitRow({
           )}
         </div>
       )}
+    </div>
+
+    {editingDias && <DiasPicker habit={habit} onDias={onDias} />}
     </div>
   );
 }
@@ -677,6 +786,7 @@ function AnchorSection({
   onToggle,
   onRename,
   onRemove,
+  onDias,
   canEdit,
 }: {
   habits: Habit[];
@@ -687,6 +797,7 @@ function AnchorSection({
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
+  onDias: (id: string, dias: number[] | null) => void;
   canEdit: boolean;
 }) {
   const copy = CATEGORY_COPY.ancora;
@@ -712,6 +823,7 @@ function AnchorSection({
               onToggle={onToggle}
               onRename={onRename}
               onRemove={onRemove}
+              onDias={onDias}
               canEdit={canEdit}
               large
             />
@@ -741,6 +853,7 @@ function HabitColumn({
   onToggle,
   onRename,
   onRemove,
+  onDias,
   canEdit,
 }: {
   category: HabitCategory;
@@ -752,6 +865,7 @@ function HabitColumn({
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
+  onDias: (id: string, dias: number[] | null) => void;
   canEdit: boolean;
 }) {
   const copy = CATEGORY_COPY[category];
@@ -782,6 +896,7 @@ function HabitColumn({
               onToggle={onToggle}
               onRename={onRename}
               onRemove={onRemove}
+              onDias={onDias}
               canEdit={canEdit}
             />
           ))}
@@ -834,17 +949,20 @@ function Ledger({
               <div className="flex gap-[3px]">
                 {dates.map((date) => {
                   const on = historyByDate.get(date)?.has(h.id) ?? false;
+                  const vale = isVisibleOn(h, date);
                   const isToday = date === todayKey;
                   return (
                     <span
                       key={date}
-                      title={date}
+                      title={vale ? date : `${date} — dia de folga deste hábito`}
                       className={`h-[13px] w-[13px] rounded-[3px] ${
                         on
                           ? h.category === "ancora"
                             ? "bg-[var(--color-accent)]"
                             : "bg-[var(--color-accent)]/60"
-                          : "bg-[var(--color-border)]"
+                          : vale
+                            ? "bg-[var(--color-border)]"
+                            : "bg-[var(--color-border)]/25"
                       } ${isToday ? "ring-1 ring-[var(--color-accent)] ring-offset-1 ring-offset-[var(--color-background)]" : ""}`}
                     />
                   );
@@ -862,7 +980,7 @@ function Calendar({
   viewMonth,
   setViewMonth,
   dayMap,
-  habitCount,
+  habits,
   selectedDate,
   onSelect,
   todayKey,
@@ -870,7 +988,7 @@ function Calendar({
   viewMonth: { year: number; month: number };
   setViewMonth: (v: { year: number; month: number }) => void;
   dayMap: Map<string, Set<string>>;
-  habitCount: number;
+  habits: Habit[];
   selectedDate: string;
   onSelect: (date: string) => void;
   todayKey: string;
@@ -936,8 +1054,9 @@ function Calendar({
           {cells.map((date, i) => {
             if (!date) return <div key={`blank-${i}`} />;
 
+            const validos = habits.filter((h) => isVisibleOn(h, date)).length;
             const done = dayMap.get(date)?.size ?? 0;
-            const ratio = habitCount > 0 ? Math.min(done / habitCount, 1) : 0;
+            const ratio = validos > 0 ? Math.min(done / validos, 1) : 0;
             const isFuture = date > todayKey;
             const isSelected = date === selectedDate;
             const isToday = date === todayKey;
@@ -949,7 +1068,7 @@ function Calendar({
                 onClick={() => onSelect(date)}
                 disabled={isFuture}
                 aria-current={isSelected ? "date" : undefined}
-                aria-label={`${dayNum} — ${done} de ${habitCount} marcados`}
+                aria-label={`${dayNum} — ${done} de ${validos} marcados`}
                 style={
                   ratio > 0
                     ? {

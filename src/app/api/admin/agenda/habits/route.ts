@@ -4,6 +4,7 @@ import {
   deleteHabit,
   getHabits,
   renameHabit,
+  updateHabitDias,
   type HabitCategory,
 } from "@/lib/agenda";
 
@@ -35,14 +36,41 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const id = typeof body?.id === "string" ? body.id : "";
   const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const temDias = "dias" in (body ?? {});
 
-  if (!id || !name) {
+  if (!id || (!name && !temDias)) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 
-  const habit = await renameHabit(id, name);
-  if (!habit) {
-    return NextResponse.json({ error: "Hábito não encontrado." }, { status: 404 });
+  let habit = null;
+
+  if (name) {
+    habit = await renameHabit(id, name);
+    if (!habit) {
+      return NextResponse.json({ error: "Hábito não encontrado." }, { status: 404 });
+    }
+  }
+
+  if (temDias) {
+    const dias = body.dias;
+    const valido =
+      dias === null ||
+      (Array.isArray(dias) &&
+        dias.length > 0 &&
+        dias.every((d: unknown) => typeof d === "number" && d >= 0 && d <= 6));
+    if (!valido) {
+      return NextResponse.json(
+        { error: "dias deve ser null ou uma lista de 1 a 7 dias (0=domingo…6=sábado)." },
+        { status: 400 }
+      );
+    }
+    habit = await updateHabitDias(
+      id,
+      dias === null ? null : Array.from(new Set(dias as number[]))
+    );
+    if (!habit) {
+      return NextResponse.json({ error: "Hábito não encontrado." }, { status: 404 });
+    }
   }
 
   return NextResponse.json({ habit });
