@@ -21,47 +21,12 @@ export interface Course {
   modules: Module[];
 }
 
-export const COURSES: Course[] = [
-  {
-    id: "fundamentos-de-ia",
-    title: "Fundamentos de Inteligência Artificial",
-    category: "Tecnologia",
-    description:
-      "Conceitos essenciais de IA e machine learning para quem está começando na área.",
-    modules: [
-      {
-        id: "conceitos-basicos",
-        title: "Conceitos Básicos",
-        lessons: [
-          {
-            id: "o-que-e-ia",
-            title: "O que é Inteligência Artificial",
-            content:
-              "Inteligência Artificial é o campo da computação dedicado a criar sistemas capazes de executar tarefas que, tipicamente, exigiriam inteligência humana: reconhecer padrões, tomar decisões, entender linguagem natural, entre outras.",
-          },
-          {
-            id: "machine-learning",
-            title: "Machine Learning",
-            content:
-              "Machine Learning é um subcampo da IA em que sistemas aprendem padrões a partir de dados, em vez de seguir regras explicitamente programadas. Um modelo é treinado com exemplos e, depois, consegue generalizar para dados novos.",
-          },
-        ],
-      },
-      {
-        id: "modelos-de-linguagem",
-        title: "Modelos de Linguagem",
-        lessons: [
-          {
-            id: "llms",
-            title: "O que são LLMs",
-            content:
-              "Large Language Models (LLMs) são modelos de IA treinados em grandes volumes de texto para prever e gerar linguagem natural. Eles são a base de assistentes conversacionais como este tutor do site.",
-          },
-        ],
-      },
-    ],
-  },
-];
+/**
+ * O catálogo embutido está vazio de propósito: os cursos de demonstração
+ * foram removidos a pedido do dono (ago/2026). Todos os cursos agora são
+ * personalizados e vivem em /data.
+ */
+export const COURSES: Course[] = [];
 
 export function getCourses(): Course[] {
   return COURSES;
