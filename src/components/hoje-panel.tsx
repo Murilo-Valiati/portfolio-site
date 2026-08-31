@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export interface EventoDoDia {
@@ -194,13 +194,140 @@ export function HojePanel({
           </Secao>
         )}
 
+        <DitadoRapido aoEnfileirar={() => setTimeout(() => router.refresh(), 4000)} />
+
         <a
           href="/admin/notas"
-          className="rounded-[12px] bg-[var(--color-accent)] px-5 py-3.5 text-center font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.16em] text-[var(--color-background)]"
+          className={`${mono} self-center opacity-45 hover:text-[var(--color-accent)] hover:opacity-100`}
         >
-          🎙️ Ditar nota
+          abrir notas ↗
         </a>
       </div>
     </main>
+  );
+}
+
+/** Ditar sem sair da página: grava → transcreve → confere → põe na fila. */
+function DitadoRapido({ aoEnfileirar }: { aoEnfileirar: () => void }) {
+  const [fase, setFase] = useState<"parado" | "gravando" | "transcrevendo" | "revisando" | "salvando">("parado");
+  const [texto, setTexto] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  async function alternarGravacao() {
+    if (fase === "gravando") {
+      recorderRef.current?.stop();
+      return;
+    }
+    setErro(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setFase("transcrevendo");
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
+        const form = new FormData();
+        form.append("file", blob, "nota.webm");
+        const res = await fetch("/api/admin/transcribe?mode=compromisso", {
+          method: "POST",
+          body: form,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setErro(data.error || "Erro ao transcrever o áudio.");
+          setFase("parado");
+          return;
+        }
+        const data = await res.json();
+        setTexto(data.text);
+        setFase("revisando");
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setFase("gravando");
+    } catch {
+      setErro("Não foi possível acessar o microfone.");
+      setFase("parado");
+    }
+  }
+
+  async function enfileirar() {
+    const valor = texto.trim();
+    if (!valor) return;
+    setFase("salvando");
+    const res = await fetch("/api/notas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: valor }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErro(data.error || "Não foi possível salvar a nota.");
+      setFase("revisando");
+      return;
+    }
+    setTexto("");
+    setFase("parado");
+    aoEnfileirar();
+  }
+
+  if (fase === "revisando" || fase === "salvando") {
+    return (
+      <div className="flex flex-col gap-2 rounded-[12px] border border-[var(--color-accent)]/40 bg-[var(--color-surface)] p-4">
+        <textarea
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          rows={2}
+          autoFocus
+          className="w-full resize-y bg-transparent text-[15px] leading-relaxed outline-none"
+        />
+        {erro && <p className="text-[13px] text-red-400">{erro}</p>}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={enfileirar}
+            disabled={fase === "salvando" || !texto.trim()}
+            className={`${mono} text-[var(--color-accent)] underline disabled:opacity-40`}
+          >
+            {fase === "salvando" ? "salvando…" : "pôr na fila"}
+          </button>
+          <button
+            onClick={() => {
+              setTexto("");
+              setFase("parado");
+            }}
+            className={`${mono} opacity-45 hover:opacity-100`}
+          >
+            descartar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={alternarGravacao}
+        disabled={fase === "transcrevendo"}
+        className={`rounded-[12px] px-5 py-3.5 text-center font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.16em] transition-colors disabled:opacity-60 ${
+          fase === "gravando"
+            ? "bg-red-500 text-white"
+            : "bg-[var(--color-accent)] text-[var(--color-background)]"
+        }`}
+      >
+        {fase === "gravando"
+          ? "■ parar e transcrever"
+          : fase === "transcrevendo"
+            ? "transcrevendo…"
+            : "🎙️ Ditar nota"}
+      </button>
+      {erro && <p className="text-center text-[13px] text-red-400">{erro}</p>}
+    </div>
   );
 }

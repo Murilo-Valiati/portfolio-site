@@ -23,7 +23,10 @@ import { enviarPushover, pushoverConfigurado } from "@/lib/pushover";
  * próprio Pushover, que repete até você confirmar).
  */
 
-const ANTECEDENCIA_MIN = 15;
+/** Padrão quando a nota não pediu antecedência específica. */
+const ANTECEDENCIA_PADRAO_MIN = 15;
+/** Janela de tolerância: se o container estava fora do ar, ainda avisa. */
+const TOLERANCIA_MS = 30 * 60_000;
 
 interface Aviso {
   eventoId: string;
@@ -56,10 +59,18 @@ export function avisadorConfigurado(): boolean {
  * Emergência: repete a cada 30 s por até 10 min até você tocar na
  * notificação. O som "persistent" insiste igual despertador.
  */
-async function avisarPushover(titulo: string, horario: string): Promise<string> {
+async function avisarPushover(
+  titulo: string,
+  horario: string,
+  minutosRestantes: number
+): Promise<string> {
+  const quando =
+    minutosRestantes <= 0
+      ? "AGORA."
+      : `às ${horario} — daqui a ${minutosRestantes} minuto${minutosRestantes === 1 ? "" : "s"}.`;
   return enviarPushover({
     titulo: `⏰ ${titulo}`,
-    mensagem: `às ${horario} — daqui a ${ANTECEDENCIA_MIN} minutos.`,
+    mensagem: quando,
     prioridade: 2,
     som: "persistent",
   });
@@ -113,14 +124,15 @@ export async function dispararAvisos(): Promise<void> {
 
   try {
     const agora = Date.now();
-    const limite = agora + ANTECEDENCIA_MIN * 60_000;
 
     const notas = await getNotes("processado");
     const candidatas = notas.filter((n) => {
       const ev = n.evento;
       if (!ev?.ligar || ev.diaInteiro) return false;
       const inicio = new Date(ev.inicio).getTime();
-      return inicio > agora && inicio <= limite;
+      const antecedencia = (ev.antecedenciaMin ?? ANTECEDENCIA_PADRAO_MIN) * 60_000;
+      const avisarEm = inicio - antecedencia;
+      return avisarEm <= agora && avisarEm > agora - TOLERANCIA_MS;
     });
 
     if (candidatas.length === 0) return;
@@ -150,10 +162,13 @@ export async function dispararAvisos(): Promise<void> {
             hour: "2-digit",
             minute: "2-digit",
           });
+          const minutosRestantes = Math.round(
+            (new Date(ev.inicio).getTime() - agora) / 60_000
+          );
           const tituloFalado = ev.titulo.replace(/\s*-\s*Me Ligue\s*$/i, "");
           registro.providerId =
             canal === "pushover"
-              ? await avisarPushover(tituloFalado, horario)
+              ? await avisarPushover(tituloFalado, horario, minutosRestantes)
               : await ligarTwilio(tituloFalado, horario);
         } catch (err) {
           registro.erro = err instanceof Error ? err.message : String(err);

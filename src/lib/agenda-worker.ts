@@ -1,9 +1,10 @@
-import { getNotes, updateNote, type Note } from "@/lib/notes";
+import { addNote, getNotes, updateNote, type Note } from "@/lib/notes";
 import {
   interpretarNota,
   type Interpretacao,
   OFFSET_SP,
 } from "@/lib/interprete";
+import { claudeConfigurado, interpretarNotaClaude } from "@/lib/claude-cli";
 import {
   buscarEvento,
   criarEvento,
@@ -96,12 +97,31 @@ async function processarNota(nota: Note): Promise<void> {
 
   let interp = nota.interpretacao;
   if (!interp) {
-    interp = await interpretarNota(nota);
+    const itens = await interpretarComMotorPreferido(nota);
+
+    // Nota com vários compromissos ("dentista 14h e mercado 17h"): cada item
+    // extra vira uma nota-filha com interpretação já pronta (sem nova chamada
+    // de IA) — assim cada nota mantém o invariante de um evento só.
+    if (itens.length > 1) {
+      for (let i = 1; i < itens.length; i++) {
+        const filha = await addNote(
+          `${itens[i].titulo} — parte ${i + 1}/${itens.length} de: "${nota.text}"`
+        );
+        await updateNote(filha.id, { interpretacao: itens[i] });
+      }
+    }
+
+    interp = itens[0];
     await updateNote(nota.id, { interpretacao: interp });
   }
 
   if (interp.acao === "nada") {
     await aguardar(nota, interp.pendencia || "A nota não parece ser um comando de agenda.");
+    return;
+  }
+
+  if (interp.acao === "consultar") {
+    await responderConsulta(nota, interp);
     return;
   }
   if (interp.pendencia) {
@@ -119,6 +139,58 @@ async function processarNota(nota: Note): Promise<void> {
   if (interp.acao === "criar") await criar(nota, interp);
   else if (interp.acao === "cancelar") await cancelar(nota, interp);
   else await alterar(nota, interp);
+}
+
+/** Assinatura do Claude primeiro (quando ativa); Gemini como reserva. */
+async function interpretarComMotorPreferido(nota: Note): Promise<Interpretacao[]> {
+  if (claudeConfigurado()) {
+    try {
+      return await interpretarNotaClaude(nota);
+    } catch (err) {
+      console.warn("[agenda-worker] Claude falhou, caindo pro Gemini:", err);
+    }
+  }
+  return interpretarNota(nota);
+}
+
+/**
+ * "O que tenho amanhã?" — o canal de voz vira mão dupla: a resposta chega
+ * como notificação normal segundos depois de ditar.
+ */
+async function responderConsulta(nota: Note, interp: Interpretacao): Promise<void> {
+  const dia =
+    interp.data ||
+    new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const janela = janelaDoDia(dia);
+  const eventos = await listarEventos(janela.inicio, janela.fim);
+
+  const linhas =
+    eventos.length === 0
+      ? ["Agenda livre. Dia seu."]
+      : eventos.map((ev) => {
+          const bruto = (ev.summary || "(sem título)").replace(
+            /\s*-\s*Me Ligue\s*$/i,
+            ""
+          );
+          const hora = ev.start?.dateTime
+            ? new Date(ev.start.dateTime).toLocaleTimeString("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+                hour: "2-digit",
+                minute: "2-digit",
+              }) + " — "
+            : "dia todo — ";
+          return `${hora}${bruto}`;
+        });
+
+  if (pushoverConfigurado()) {
+    await enviarPushover({
+      titulo: `📅 Sua agenda de ${legivel(dia)}`,
+      mensagem: linhas.join("\n"),
+      prioridade: 0,
+    });
+  }
+
+  await concluir(nota, `Consulta respondida (${eventos.length} evento${eventos.length === 1 ? "" : "s"}).`, false);
 }
 
 /* ---------------------------------------------------------------- ações -- */
@@ -156,7 +228,7 @@ async function criar(nota: Note, interp: Interpretacao): Promise<void> {
 
   const criado = adotavel ?? (await criarEvento(ev));
 
-  await gravarEvento(nota, criado, ev, interp.ligar);
+  await gravarEvento(nota, criado, ev, interp);
 
   const confirmado = await buscarEvento(criado.id);
   if (!confirmado) {
@@ -214,7 +286,7 @@ async function alterar(nota: Note, interp: Interpretacao): Promise<void> {
   }
 
   const remarcado = await remarcarEvento(alvo.evento.id, ev);
-  await gravarEvento(nota, remarcado, ev, interp.ligar);
+  await gravarEvento(nota, remarcado, ev, interp);
 
   const confirmado = await buscarEvento(alvo.evento.id);
   if (!confirmado) throw new Error("Remarquei mas o Google não confirmou.");
@@ -321,7 +393,7 @@ async function gravarEvento(
   nota: Note,
   criado: EventoGoogle,
   ev: NovoEvento,
-  ligar: boolean
+  interp: Interpretacao
 ): Promise<void> {
   await updateNote(nota.id, {
     evento: {
@@ -330,18 +402,43 @@ async function gravarEvento(
       inicio: ev.inicio,
       fim: ev.fim,
       diaInteiro: ev.diaInteiro,
-      ligar,
+      ligar: interp.ligar,
+      ...(interp.antecedenciaMin !== null
+        ? { antecedenciaMin: interp.antecedenciaMin }
+        : {}),
     },
   });
 }
 
-async function concluir(nota: Note, aviso?: string): Promise<void> {
-  await updateNote(nota.id, {
+async function concluir(
+  nota: Note,
+  aviso?: string,
+  confirmar = true
+): Promise<void> {
+  const atualizada = await updateNote(nota.id, {
     status: "processado",
     processadoPor: "site",
     tentativas: undefined,
     aviso,
   });
+
+  // Confirmação discreta de sucesso: confiar sem precisar conferir a agenda.
+  // Prioridade -1 = sem som, só aparece na bandeja.
+  if (confirmar && pushoverConfigurado()) {
+    const ev = atualizada?.evento;
+    const mensagem = aviso || (ev ? `${ev.titulo} · ${legivel(ev.inicio)}` : null);
+    if (mensagem) {
+      try {
+        await enviarPushover({
+          titulo: "✓ Na agenda",
+          mensagem,
+          prioridade: -1,
+        });
+      } catch (err) {
+        console.warn("[agenda-worker] confirmação falhou:", err);
+      }
+    }
+  }
 }
 
 async function aguardar(nota: Note, aviso: string): Promise<void> {

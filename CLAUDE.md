@@ -32,12 +32,22 @@ substitui a antiga automação externa (Claude Cowork + Reclaim + Toki):
   texto), o que a devolve pra fila zerada (limpa interpretação e evento).
 - Bancada dev: `GET /api/notas/teste-interpretacao?texto=...&criadaEm=...`
   (404 em produção).
-- `src/lib/rotina.ts` — resumo matinal (7h, todo dia) e revisão semanal
-  (domingo 20h) via Pushover prioridade normal, com estado em
-  /data/rotina.json (1 envio/dia, sobrevive a reinício; primeira execução
-  semeia sem enviar). Disparo manual: `GET /api/rotina/testar?tipo=resumo|
-  revisao&key=NOTES_KEY` (fora de /api/admin de propósito — o middleware
-  exigiria sessão).
+- `src/lib/rotina.ts` — resumo matinal (7h, com clima via Open-Meteo
+  CLIMA_LAT/LON default Palmas-TO, e sequência de hábitos âncora), resumo da
+  VÉSPERA (21h, só quando amanhã tem evento ou há nota em atenção) e revisão
+  semanal (domingo 20h, com lições de curso concluídas na semana + progresso
+  do TripleTen) via Pushover, estado em /data/rotina.json. Disparo manual:
+  `GET /api/rotina/testar?tipo=resumo|vespera|revisao&key=NOTES_KEY`
+  (&seco=1 monta sem enviar).
+- Mordomo 2.0 (30/08): o interpretador retorna {itens:[...]} — nota com vários
+  compromissos é DIVIDIDA em notas-filhas com interpretação pré-cacheada; ação
+  nova "consultar" ("o que tenho amanhã?") responde a agenda via Pushover;
+  antecedenciaMin por evento ("me ligue 1h antes"=60, lembrete relativo=0;
+  padrão 15 no discador, com tolerância de 30 min pós-janela); sucesso gera
+  confirmação silenciosa (prioridade -1 "✓ Na agenda"); o worker usa o Claude
+  da assinatura quando ativo, Gemini como reserva. Progresso de lição do LMS
+  agora grava completedAt (base da linha de bootcamp na revisão). Página Hoje
+  tem ditado por voz embutido.
 - `/admin/hoje` — página do dia: agenda (Google), notas em atenção com
   "tentar de novo", hábitos com toggle (API do tracker), botão de ditar.
 - Compatibilidade: os endpoints do Cowork (GET com `?key=`, mutação via GET em

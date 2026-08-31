@@ -1,6 +1,13 @@
 import { spawn } from "child_process";
 import type { ChatMessage } from "@/lib/gemini";
 import { tutorSystemInstruction } from "@/lib/gemini";
+import {
+  montarPromptNota,
+  SISTEMA_INTERPRETADOR,
+  validarItens,
+  type Interpretacao,
+} from "@/lib/interprete";
+import type { Note } from "@/lib/notes";
 
 /**
  * Motor do ASSISTENTE usando a assinatura pessoal do Claude, via Claude Code
@@ -99,6 +106,20 @@ export async function tutorClaude(
     .join("\n");
 
   return rodarClaude(prompt);
+}
+
+/** Interpretação de nota da agenda pela assinatura (mesmas regras do Gemini). */
+export async function interpretarNotaClaude(nota: Note): Promise<Interpretacao[]> {
+  const prompt = [
+    SISTEMA_INTERPRETADOR,
+    "",
+    montarPromptNota(nota),
+    "",
+    'Responda APENAS com o JSON {"itens": [...]}, sem markdown e sem texto extra.',
+  ].join("\n");
+
+  const bruto = JSON.parse(limparJson(await rodarClaude(prompt)));
+  return validarItens(bruto);
 }
 
 export interface QuizQuestionClaude {

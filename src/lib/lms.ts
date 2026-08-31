@@ -339,6 +339,8 @@ interface ProgressStore {
   [key: string]: {
     [courseId: string]: {
       completedLessons: string[];
+      /** lessonId -> ISO de quando foi marcada (para a revisão semanal). */
+      completedAt?: Record<string, string>;
     };
   };
 }
@@ -357,6 +359,10 @@ async function lerProgresso(): Promise<ProgressStore> {
       const lista = destino[courseId]?.completedLessons ?? [];
       destino[courseId] = {
         completedLessons: Array.from(new Set([...lista, ...dados.completedLessons])),
+        completedAt: {
+          ...(destino[courseId]?.completedAt ?? {}),
+          ...(dados.completedAt ?? {}),
+        },
       };
     }
   }
@@ -391,16 +397,49 @@ export async function toggleLessonComplete(
     if (!store[ALUNO][courseId]) {
       store[ALUNO][courseId] = { completedLessons: [] };
     }
-    const list = store[ALUNO][courseId].completedLessons;
+    const registro = store[ALUNO][courseId];
+    const list = registro.completedLessons;
+    if (!registro.completedAt) registro.completedAt = {};
     const idx = list.indexOf(lessonId);
     if (completed && idx === -1) {
       list.push(lessonId);
+      registro.completedAt[lessonId] = new Date().toISOString();
     } else if (!completed && idx !== -1) {
       list.splice(idx, 1);
+      delete registro.completedAt[lessonId];
     }
     await writeJsonAtomic(PROGRESS_FILE, store);
     return list;
   });
+}
+
+/** Lições (de todos os cursos) marcadas entre dois dias SP (YYYY-MM-DD). */
+export async function contarLicoesConcluidasEntre(
+  inicioDia: string,
+  fimDia: string
+): Promise<number> {
+  const store = await lerProgresso();
+  let total = 0;
+  for (const dados of Object.values(store[ALUNO] ?? {})) {
+    for (const iso of Object.values(dados.completedAt ?? {})) {
+      const dia = new Date(iso).toLocaleDateString("sv-SE", {
+        timeZone: "America/Sao_Paulo",
+      });
+      if (dia >= inicioDia && dia <= fimDia) total++;
+    }
+  }
+  return total;
+}
+
+/** Progresso de um curso: lições feitas / total (módulos custom inclusos). */
+export async function progressoDoCurso(
+  courseId: string
+): Promise<{ feitas: number; total: number } | null> {
+  const curso = await getCourseWithCustomModules(courseId);
+  if (!curso) return null;
+  const total = curso.modules.reduce((s, m) => s + m.lessons.length, 0);
+  const feitas = (await getProgress(courseId)).length;
+  return { feitas, total };
 }
 
 // --- Resultados de quiz ---

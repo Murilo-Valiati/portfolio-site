@@ -20,6 +20,8 @@ export interface EventoDaNota {
   fim: string;
   diaInteiro: boolean;
   ligar: boolean;
+  /** Minutos de antecedência do aviso; ausente = padrão do sistema (15). */
+  antecedenciaMin?: number;
 }
 
 export interface Note {

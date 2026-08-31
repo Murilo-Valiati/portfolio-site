@@ -21,12 +21,12 @@ export async function GET(req: NextRequest) {
   const criadaEm =
     req.nextUrl.searchParams.get("criadaEm") || new Date().toISOString();
 
-  const interpretacao = await interpretarNota({
+  const itens = await interpretarNota({
     id: "teste",
     text: texto,
     createdAt: criadaEm,
     status: "pendente",
   });
 
-  return NextResponse.json({ texto, criadaEm, interpretacao });
+  return NextResponse.json({ texto, criadaEm, itens });
 }

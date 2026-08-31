@@ -134,6 +134,50 @@ export async function getRecentDays(count: number): Promise<DayEntry[]> {
   return [...days].sort((a, b) => b.date.localeCompare(a.date)).slice(0, count);
 }
 
+/**
+ * Dias seguidos com TODOS os hábitos âncora cumpridos, contando de hoje (ou
+ * de ontem, se hoje ainda não fechou). Mesma régua do tracker, no servidor —
+ * para o resumo matinal.
+ */
+export async function calcularSequenciaAncora(): Promise<number> {
+  const habits = await readHabits();
+  const ancoras = habits.filter(
+    (h) => h.category === "ancora" && h.recurring !== false
+  );
+  if (ancoras.length === 0) return 0;
+
+  const days = await readDays();
+  const mapa = new Map(days.map((d) => [d.date, new Set(d.checked)]));
+
+  const hoje = new Date().toLocaleDateString("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+  });
+  const anterior = (dia: string) => {
+    const d = new Date(`${dia}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+  };
+
+  let cursor = hoje;
+  let count = 0;
+  for (let i = 0; i < 365; i++) {
+    const checked = mapa.get(cursor);
+    const fechou =
+      !!checked &&
+      ancoras.every((h) => (isVisibleOn(h, cursor) ? checked.has(h.id) : true));
+    if (!fechou) {
+      if (cursor === hoje) {
+        cursor = anterior(cursor);
+        continue;
+      }
+      break;
+    }
+    count++;
+    cursor = anterior(cursor);
+  }
+  return count;
+}
+
 export async function getDaysInRange(
   from: string,
   to: string
