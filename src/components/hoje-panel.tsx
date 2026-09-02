@@ -117,6 +117,11 @@ export function HojePanel({
     setTimeout(() => router.refresh(), 4000);
   }
 
+  async function removerPrazo(id: string) {
+    await fetch(`/api/admin/prazos/${id}`, { method: "DELETE" });
+    router.refresh();
+  }
+
   const feitos = Object.values(checks).filter(Boolean).length;
   const planejados = habitos.filter((h) => h.categoria !== "mau").length;
 
@@ -149,13 +154,17 @@ export function HojePanel({
           </div>
         </header>
 
-        {prazos.length > 0 && (
-          <section className="flex flex-col gap-3">
-            {prazos.map((p, i) => (
-              <Prazo key={p.id} prazo={p} destaque={i === 0} />
-            ))}
-          </section>
-        )}
+        <section className="flex flex-col gap-3">
+          {prazos.map((p, i) => (
+            <Prazo
+              key={p.id}
+              prazo={p}
+              destaque={i === 0}
+              onRemover={() => removerPrazo(p.id)}
+            />
+          ))}
+          <NovoPrazo onCriado={() => router.refresh()} />
+        </section>
 
         <Secao titulo="Agenda do dia">
           {eventos === null ? (
@@ -454,7 +463,16 @@ function DitadoRapido({ aoEnfileirar }: { aoEnfileirar: () => void }) {
  * passar batida, custa caro. Urgência é mostrada pelo peso do cartão, não por
  * cor de alerta — vermelho aqui competiria com o resto do painel o tempo todo.
  */
-function Prazo({ prazo, destaque }: { prazo: PrazoDoDia; destaque: boolean }) {
+function Prazo({
+  prazo,
+  destaque,
+  onRemover,
+}: {
+  prazo: PrazoDoDia;
+  destaque: boolean;
+  onRemover: () => void;
+}) {
+  const [confirmando, setConfirmando] = useState(false);
   const vencido = prazo.dias < 0;
   const apertado = prazo.dias >= 0 && prazo.dias <= 2;
 
@@ -494,6 +512,129 @@ function Prazo({ prazo, destaque }: { prazo: PrazoDoDia; destaque: boolean }) {
           {prazo.rotuloData} · {prazo.contagem}
         </p>
       </div>
+
+      <div className="ml-auto flex shrink-0 items-center gap-3 self-start">
+        {confirmando ? (
+          <>
+            <button
+              onClick={onRemover}
+              className={`${mono} text-[var(--color-accent)] underline`}
+            >
+              excluir
+            </button>
+            <button
+              onClick={() => setConfirmando(false)}
+              className={`${mono} opacity-45 hover:opacity-100`}
+            >
+              não
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => setConfirmando(true)}
+            className={`${mono} opacity-35 transition-opacity hover:opacity-100`}
+            aria-label={`Remover prazo ${prazo.titulo}`}
+          >
+            remover
+          </button>
+        )}
+      </div>
     </article>
+  );
+}
+
+/**
+ * Fechado por padrão: prazo é coisa que se cadastra de vez em quando, então o
+ * formulário aberto o tempo todo só roubaria atenção do dia.
+ */
+function NovoPrazo({ onCriado }: { onCriado: () => void }) {
+  const [aberto, setAberto] = useState(false);
+  const [titulo, setTitulo] = useState("");
+  const [data, setData] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function salvar() {
+    if (!titulo.trim() || !data || salvando) return;
+    setSalvando(true);
+    setErro(null);
+
+    const res = await fetch("/api/admin/prazos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ titulo: titulo.trim(), data }),
+    });
+
+    setSalvando(false);
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setErro(d.error || "Não foi possível salvar.");
+      return;
+    }
+
+    setTitulo("");
+    setData("");
+    setAberto(false);
+    onCriado();
+  }
+
+  if (!aberto) {
+    return (
+      <button
+        onClick={() => setAberto(true)}
+        className={`${mono} self-start opacity-45 transition-opacity hover:opacity-100`}
+      >
+        + prazo
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-[14px] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+      <span className={`${mono} opacity-45`}>Novo prazo</span>
+
+      <input
+        autoFocus
+        value={titulo}
+        onChange={(e) => setTitulo(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") salvar();
+          if (e.key === "Escape") setAberto(false);
+        }}
+        placeholder="O que precisa ser entregue"
+        className="w-full bg-transparent text-[15px] outline-none placeholder:opacity-35"
+      />
+
+      <input
+        type="date"
+        value={data}
+        onChange={(e) => setData(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") salvar();
+          if (e.key === "Escape") setAberto(false);
+        }}
+        aria-label="Data da entrega"
+        className="w-full border-t border-[var(--color-border)] bg-transparent pt-3 font-[family-name:var(--font-mono)] text-[13.5px] outline-none [color-scheme:dark]"
+      />
+
+      {erro && <p className="text-[13px] text-red-400">{erro}</p>}
+
+      <div className="flex items-center gap-4 border-t border-[var(--color-border)] pt-3">
+        <button
+          onClick={salvar}
+          disabled={!titulo.trim() || !data || salvando}
+          className={`${mono} text-[var(--color-accent)] transition-opacity hover:underline disabled:opacity-25 disabled:hover:no-underline`}
+        >
+          {salvando ? "salvando…" : "adicionar"}
+        </button>
+        <button
+          onClick={() => setAberto(false)}
+          className={`${mono} opacity-45 hover:opacity-100`}
+        >
+          cancelar
+        </button>
+      </div>
+    </div>
   );
 }
