@@ -12,6 +12,15 @@ export interface EventoDoDia {
   emMinutos: number | null;
 }
 
+export interface PrazoDoDia {
+  id: string;
+  titulo: string;
+  /** Já calculado no servidor, para não divergir de fuso com o cliente. */
+  dias: number;
+  contagem: string;
+  rotuloData: string;
+}
+
 export interface BootcampInfo {
   feitas: number;
   total: number;
@@ -65,6 +74,7 @@ export function HojePanel({
   pendentes,
   habitos,
   bootcamp,
+  prazos,
   logHref,
 }: {
   rotulo: string;
@@ -78,6 +88,7 @@ export function HojePanel({
   pendentes: number;
   habitos: HabitoDoDia[];
   bootcamp: BootcampInfo | null;
+  prazos: PrazoDoDia[];
   logHref: string;
 }) {
   const router = useRouter();
@@ -137,6 +148,14 @@ export function HojePanel({
             )}
           </div>
         </header>
+
+        {prazos.length > 0 && (
+          <section className="flex flex-col gap-3">
+            {prazos.map((p, i) => (
+              <Prazo key={p.id} prazo={p} destaque={i === 0} />
+            ))}
+          </section>
+        )}
 
         <Secao titulo="Agenda do dia">
           {eventos === null ? (
@@ -427,5 +446,54 @@ function DitadoRapido({ aoEnfileirar }: { aoEnfileirar: () => void }) {
       </button>
       {erro && <p className="text-center text-[13px] text-red-400">{erro}</p>}
     </div>
+  );
+}
+
+/**
+ * O prazo mais próximo abre o dia, antes até da agenda: é a coisa que, se
+ * passar batida, custa caro. Urgência é mostrada pelo peso do cartão, não por
+ * cor de alerta — vermelho aqui competiria com o resto do painel o tempo todo.
+ */
+function Prazo({ prazo, destaque }: { prazo: PrazoDoDia; destaque: boolean }) {
+  const vencido = prazo.dias < 0;
+  const apertado = prazo.dias >= 0 && prazo.dias <= 2;
+
+  const borda = vencido
+    ? "border-[var(--color-accent)]"
+    : destaque
+      ? "border-[var(--color-accent)]/45"
+      : "border-[var(--color-border)]";
+
+  return (
+    <article
+      className={`flex items-center gap-5 rounded-[14px] border bg-[var(--color-surface)] p-5 sm:p-6 ${borda}`}
+    >
+      <div className="flex shrink-0 flex-col items-center">
+        <span
+          className={`font-[family-name:var(--font-mono)] font-semibold leading-none ${
+            destaque ? "text-[40px]" : "text-[28px]"
+          } ${vencido || apertado ? "text-[var(--color-accent)]" : ""}`}
+        >
+          {Math.abs(prazo.dias)}
+        </span>
+        <span className={`${mono} mt-1.5 opacity-45`}>
+          {Math.abs(prazo.dias) === 1 ? "dia" : "dias"}
+        </span>
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-1.5">
+        <span className={`${mono} text-[var(--color-accent)]`}>Prazo</span>
+        <h2
+          className={`font-[family-name:var(--font-display)] font-semibold leading-tight ${
+            destaque ? "text-[21px] sm:text-[24px]" : "text-[17px]"
+          }`}
+        >
+          {prazo.titulo}
+        </h2>
+        <p className="font-[family-name:var(--font-mono)] text-[12px] opacity-55">
+          {prazo.rotuloData} · {prazo.contagem}
+        </p>
+      </div>
+    </article>
   );
 }

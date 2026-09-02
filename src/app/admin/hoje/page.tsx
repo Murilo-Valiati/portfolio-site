@@ -6,12 +6,14 @@ import { OFFSET_SP } from "@/lib/interprete";
 import { linhaDoClima } from "@/lib/rotina";
 import { getCourseWithCustomModules, getProgress } from "@/lib/lms";
 import { DAILY_LOG_PATH } from "@/lib/session";
+import { getPrazos, diasRestantes, rotuloContagem } from "@/lib/prazos";
 import {
   HojePanel,
   type EventoDoDia,
   type NotaAtencao,
   type HabitoDoDia,
   type BootcampInfo,
+  type PrazoDoDia,
 } from "@/components/hoje-panel";
 
 export const metadata: Metadata = {
@@ -155,6 +157,22 @@ export default async function HojePage() {
     };
   }
 
+  // Prazo vencido some depois de uma semana: passou disso, ou já foi entregue
+  // ou virou outra conversa — insistir só polui a tela.
+  const prazos: PrazoDoDia[] = (await getPrazos())
+    .map((p) => {
+      const dias = diasRestantes(p.data, data);
+      const [ano, mes, dia] = p.data.split("-");
+      return {
+        id: p.id,
+        titulo: p.titulo,
+        dias,
+        contagem: rotuloContagem(dias),
+        rotuloData: `${dia}/${mes}/${ano}`,
+      };
+    })
+    .filter((p) => p.dias >= -7);
+
   return (
     <HojePanel
       rotulo={rotulo}
@@ -168,6 +186,7 @@ export default async function HojePage() {
       pendentes={pendentes}
       habitos={habitos}
       bootcamp={bootcamp}
+      prazos={prazos}
       logHref={DAILY_LOG_PATH}
     />
   );
