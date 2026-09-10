@@ -147,3 +147,18 @@ export async function saveContent(content: SiteContent): Promise<void> {
   await ensureDataDir();
   await fs.writeFile(CONTENT_FILE, JSON.stringify(content, null, 2));
 }
+
+/**
+ * Garante que um link digitado no painel vire URL absoluta.
+ *
+ * Sem isso, "www.linkedin.com/in/fulano" é tratado como caminho relativo e o
+ * navegador cola no próprio domínio — virando murilovaliati.com.br/www.linkedin
+ * .com/in/fulano. O painel aceita texto livre, então normalizar aqui é mais
+ * confiável do que confiar em quem digita.
+ */
+export function urlExterna(valor: string): string {
+  const limpo = valor.trim();
+  if (!limpo) return "";
+  if (/^(https?:|mailto:|tel:)/i.test(limpo)) return limpo;
+  return `https://${limpo.replace(/^\/+/, "")}`;
+}

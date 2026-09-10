@@ -1,4 +1,4 @@
-import { getContent } from "@/lib/content";
+import { getContent, urlExterna } from "@/lib/content";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageBar } from "@/components/language-bar";
 import { ExpandableText } from "@/components/expandable-text";
@@ -173,13 +173,13 @@ export default async function Home() {
                 </ul>
                 <div className="mt-auto flex gap-5 pt-1.5 text-sm">
                   <a
-                    href={project.link}
+                    href={urlExterna(project.link)}
                     className="border-b border-current pb-px opacity-[.82] transition hover:opacity-100 hover:text-[var(--color-accent)]"
                   >
                     Ver projeto
                   </a>
                   <a
-                    href={project.repo}
+                    href={urlExterna(project.repo)}
                     className="border-b border-current pb-px opacity-[.82] transition hover:opacity-100 hover:text-[var(--color-accent)]"
                   >
                     Código
@@ -207,7 +207,7 @@ export default async function Home() {
               Email
             </a>
             <a
-              href={contact.linkedin}
+              href={urlExterna(contact.linkedin)}
               target="_blank"
               rel="noreferrer"
               className="rounded-[10px] border border-[var(--color-border)] px-5 py-[11px] text-sm transition hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/8 hover:text-[var(--color-accent)]"
@@ -215,7 +215,7 @@ export default async function Home() {
               LinkedIn
             </a>
             <a
-              href={contact.github}
+              href={urlExterna(contact.github)}
               target="_blank"
               rel="noreferrer"
               className="rounded-[10px] border border-[var(--color-border)] px-5 py-[11px] text-sm transition hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/8 hover:text-[var(--color-accent)]"
@@ -223,7 +223,7 @@ export default async function Home() {
               GitHub
             </a>
             <a
-              href={contact.whatsapp}
+              href={urlExterna(contact.whatsapp)}
               target="_blank"
               rel="noreferrer"
               className="rounded-[10px] border border-[var(--color-border)] px-5 py-[11px] text-sm transition hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/8 hover:text-[var(--color-accent)]"
